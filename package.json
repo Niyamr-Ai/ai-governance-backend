@@ -1,0 +1,40 @@
+{
+  "private": true,
+  "scripts": {
+    "dev": "nodemon --watch src --exec tsx src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "ingest-regulations": "tsx scripts/ingest-regulations.ts",
+    "ingest-platform-knowledge": "tsx scripts/ingest-platform-knowledge.ts",
+    "ingest-user-systems": "tsx scripts/ingest-user-systems.ts",
+    "test-rag": "tsx scripts/test-rag.ts",
+    "test-platform-rag": "tsx scripts/test-platform-rag.ts",
+    "test-user-system-rag": "tsx scripts/test-user-system-rag.ts"
+  },
+  "dependencies": {
+    "@pinecone-database/pinecone": "^6.1.2",
+    "@supabase/supabase-js": "latest",
+    "@types/jsonwebtoken": "^9.0.10",
+    "axios": "^1.13.2",
+    "cors": "^2.8.5",
+    "date-fns": "^4.1.0",
+    "dotenv": "^16.4.5",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "marked": "^17.0.1",
+    "openai": "^5.12.2",
+    "pdf-parse": "^1.1.4",
+    "redis": "^5.6.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.6",
+    "@types/marked": "^5.0.2",
+    "@types/node": "^22.10.2",
+    "@types/pdf-parse": "^1.1.5",
+    "nodemon": "^3.1.11",
+    "tsx": "^4.19.2",
+    "typescript": "5.7.2"
+  }
+}

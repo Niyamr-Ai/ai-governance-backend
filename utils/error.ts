@@ -1,0 +1,36 @@
+// utils/error.ts
+import { ZodError } from "zod";
+import { Request, Response, NextFunction } from "express";
+
+/** Express error handler middleware */
+export function errorHandler(err: Error, req: Request, res: Response, next: NextFunction) {
+  // Zod validation errors
+  if (err instanceof ZodError) {
+    return res.status(400).json({
+      error: "Validation failed",
+      details: err.issues
+    });
+  }
+
+  // Knex/Postgres unique violation
+  if ((err as any)?.code === "23505") {
+    const detail = (err as any).detail || "Duplicate record";
+    return res.status(409).json({ error: detail });
+  }
+
+  // Foreign key violation or other constraint error
+  if ((err as any)?.code === "23503") {
+    const detail = (err as any).detail || "Foreign key constraint failed";
+    return res.status(400).json({ error: detail });
+  }
+
+  console.error("[Unhandled Error]", err);
+  return res.status(500).json({ error: "Internal server error" });
+}
+
+/** Higher-order function to wrap async route handlers */
+export function asyncHandler(fn: Function) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
+}

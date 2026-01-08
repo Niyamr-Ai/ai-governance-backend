@@ -1,0 +1,1 @@
+{"version":3,"file":"governance-tasks.d.ts","sourceRoot":"","sources":["../../../services/governance/governance-tasks.ts"],"names":[],"mappings":"AAEA,OAAO,KAAK,EAEV,cAAc,EAEf,MAAM,6BAA6B,CAAC;AA2RrC;;GAEG;AACH,wBAAsB,uBAAuB,CAC3C,QAAQ,EAAE,MAAM,GACf,OAAO,CAAC,cAAc,EAAE,CAAC,CAkM3B;AAED,wBAAsB,gBAAgB,CAAC,QAAQ,EAAE,MAAM,6BAGtD"}
