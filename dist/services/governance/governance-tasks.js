@@ -2,8 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.evaluateGovernanceTasks = evaluateGovernanceTasks;
 exports.getBlockingTasks = getBlockingTasks;
-const server_1 = require("../../utils/supabase/server");
-const auth_1 = require("../../middleware/auth");
+const client_1 = require("../../src/utils/supabase/client");
 const REGULATION_LABEL_MAP = {
     EU: "EU AI Act",
     UK: "UK AI Act",
@@ -209,21 +208,16 @@ async function fetchExistingTasks(supabase, systemId) {
  * Evaluate governance rules and ensure tasks are created/updated.
  */
 async function evaluateGovernanceTasks(systemId) {
-    const userId = await (0, auth_1.getUserId)();
-    if (!userId) {
-        return [];
-    }
-    const supabase = await (0, server_1.createClient)();
-    const context = await getSystemContext(supabase, systemId);
+    const context = await getSystemContext(client_1.supabase, systemId);
     if (!context) {
         return [];
     }
-    const existingTasks = await fetchExistingTasks(supabase, systemId);
-    const riskSummary = await getRiskAssessmentSummary(supabase, systemId);
-    const documentationExists = await hasCurrentDocumentation(supabase, systemId, context.regulation);
+    const existingTasks = await fetchExistingTasks(client_1.supabase, systemId);
+    const riskSummary = await getRiskAssessmentSummary(client_1.supabase, systemId);
+    const documentationExists = await hasCurrentDocumentation(client_1.supabase, systemId, context.regulation);
     // Rule: No approved risk assessment
     if (riskSummary.approved === 0) {
-        await ensureTask(supabase, existingTasks, {
+        await ensureTask(client_1.supabase, existingTasks, {
             ai_system_id: systemId,
             regulation: context.regulation,
             title: "Obtain an approved risk assessment",
@@ -234,11 +228,11 @@ async function evaluateGovernanceTasks(systemId) {
         });
     }
     else {
-        await completeTask(supabase, existingTasks, systemId, context.regulation, "Obtain an approved risk assessment");
+        await completeTask(client_1.supabase, existingTasks, systemId, context.regulation, "Obtain an approved risk assessment");
     }
     // Rule: Documentation missing
     if (!documentationExists) {
-        await ensureTask(supabase, existingTasks, {
+        await ensureTask(client_1.supabase, existingTasks, {
             ai_system_id: systemId,
             regulation: context.regulation,
             title: "Generate compliance documentation",
@@ -249,7 +243,7 @@ async function evaluateGovernanceTasks(systemId) {
         });
     }
     else {
-        await completeTask(supabase, existingTasks, systemId, context.regulation, "Generate compliance documentation");
+        await completeTask(client_1.supabase, existingTasks, systemId, context.regulation, "Generate compliance documentation");
     }
     // EU lifecycle-specific checks
     if (context.regulation === "EU") {
@@ -257,7 +251,7 @@ async function evaluateGovernanceTasks(systemId) {
             "Draft");
         if (lifecycleStage === "Testing" &&
             riskSummary.submitted + riskSummary.approved === 0) {
-            await ensureTask(supabase, existingTasks, {
+            await ensureTask(client_1.supabase, existingTasks, {
                 ai_system_id: systemId,
                 regulation: "EU",
                 title: "Provide a completed assessment for Testing",
@@ -268,11 +262,11 @@ async function evaluateGovernanceTasks(systemId) {
             });
         }
         else {
-            await completeTask(supabase, existingTasks, systemId, "EU", "Provide a completed assessment for Testing");
+            await completeTask(client_1.supabase, existingTasks, systemId, "EU", "Provide a completed assessment for Testing");
         }
         if ((lifecycleStage === "Deployed" || lifecycleStage === "Monitoring") &&
             riskSummary.approved === 0) {
-            await ensureTask(supabase, existingTasks, {
+            await ensureTask(client_1.supabase, existingTasks, {
                 ai_system_id: systemId,
                 regulation: "EU",
                 title: "Approved assessment required for Deployed/Monitoring",
@@ -283,12 +277,12 @@ async function evaluateGovernanceTasks(systemId) {
             });
         }
         else {
-            await completeTask(supabase, existingTasks, systemId, "EU", "Approved assessment required for Deployed/Monitoring");
+            await completeTask(client_1.supabase, existingTasks, systemId, "EU", "Approved assessment required for Deployed/Monitoring");
         }
         if ((lifecycleStage === "Deployed" || lifecycleStage === "Monitoring") &&
             (!context.data?.accountable_person ||
                 context.data.accountable_person === "Not specified")) {
-            await ensureTask(supabase, existingTasks, {
+            await ensureTask(client_1.supabase, existingTasks, {
                 ai_system_id: systemId,
                 regulation: "EU",
                 title: "Assign accountable person",
@@ -298,12 +292,12 @@ async function evaluateGovernanceTasks(systemId) {
             });
         }
         else {
-            await completeTask(supabase, existingTasks, systemId, "EU", "Assign accountable person");
+            await completeTask(client_1.supabase, existingTasks, systemId, "EU", "Assign accountable person");
         }
     }
     // UK checklist completeness
     if (context.regulation === "UK" && ukChecklistIncomplete(context.data)) {
-        await ensureTask(supabase, existingTasks, {
+        await ensureTask(client_1.supabase, existingTasks, {
             ai_system_id: systemId,
             regulation: "UK",
             title: "Complete UK compliance checklist",
@@ -313,12 +307,12 @@ async function evaluateGovernanceTasks(systemId) {
         });
     }
     else if (context.regulation === "UK") {
-        await completeTask(supabase, existingTasks, systemId, "UK", "Complete UK compliance checklist");
+        await completeTask(client_1.supabase, existingTasks, systemId, "UK", "Complete UK compliance checklist");
     }
     // MAS checklist completeness
     if (context.regulation === "MAS" &&
         masChecklistIncomplete(context.data)) {
-        await ensureTask(supabase, existingTasks, {
+        await ensureTask(client_1.supabase, existingTasks, {
             ai_system_id: systemId,
             regulation: "MAS",
             title: "Complete MAS compliance checklist",
@@ -328,10 +322,10 @@ async function evaluateGovernanceTasks(systemId) {
         });
     }
     else if (context.regulation === "MAS") {
-        await completeTask(supabase, existingTasks, systemId, "MAS", "Complete MAS compliance checklist");
+        await completeTask(client_1.supabase, existingTasks, systemId, "MAS", "Complete MAS compliance checklist");
     }
     // Return the latest task list
-    const { data: refreshed } = await supabase
+    const { data: refreshed } = await client_1.supabase
         .from("governance_tasks")
         .select("*")
         .eq("ai_system_id", systemId)

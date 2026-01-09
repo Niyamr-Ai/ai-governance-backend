@@ -41,8 +41,7 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getLifecycle = getLifecycle;
 exports.updateLifecycle = updateLifecycle;
-const server_1 = require("../../utils/supabase/server");
-const auth_1 = require("../../middleware/auth");
+const supabase_1 = require("../../src/lib/supabase");
 const lifecycle_governance_rules_1 = require("../../services/governance/lifecycle-governance-rules");
 const governance_tasks_1 = require("../../services/governance/governance-tasks");
 const LIFECYCLE_STAGES = ['Draft', 'Development', 'Testing', 'Deployed', 'Monitoring', 'Retired'];
@@ -51,12 +50,9 @@ const LIFECYCLE_STAGES = ['Draft', 'Development', 'Testing', 'Deployed', 'Monito
  */
 async function getLifecycle(req, res) {
     try {
-        const userId = await (0, auth_1.getUserId)(req);
-        if (!userId) {
-            return res.status(401).json({ error: "Unauthorized" });
-        }
+        const userId = req.user.sub;
         const { id: systemId } = req.params;
-        const supabase = await (0, server_1.createClient)();
+        const supabase = supabase_1.supabaseAdmin;
         // Lifecycle governance is ONLY for EU AI Act assessments
         const { data: euSystem, error: euError } = await supabase
             .from("eu_ai_act_check_results")
@@ -103,13 +99,10 @@ async function getLifecycle(req, res) {
  */
 async function updateLifecycle(req, res) {
     try {
-        const userId = await (0, auth_1.getUserId)(req);
-        if (!userId) {
-            return res.status(401).json({ error: "Unauthorized" });
-        }
+        const userId = req.user.sub;
         const { id: systemId } = req.params;
         const body = req.body;
-        const supabase = await (0, server_1.createClient)();
+        const supabase = supabase_1.supabaseAdmin;
         // Validate lifecycle_stage
         if (!body.lifecycle_stage) {
             return res.status(400).json({ error: "lifecycle_stage is required" });

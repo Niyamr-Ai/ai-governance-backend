@@ -30,7 +30,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getExplainContext = getExplainContext;
 exports.getSystemAnalysisContext = getSystemAnalysisContext;
 exports.getActionContext = getActionContext;
-const server_1 = require("../../../utils/supabase/server");
+const supabase_1 = require("../../../src/lib/supabase");
 const rag_service_1 = require("../rag-service");
 const platform_rag_service_1 = require("../platform-rag-service");
 const user_system_rag_service_1 = require("../user-system-rag-service");
@@ -203,7 +203,7 @@ async function getSystemAnalysisContext(userMessage, pageContext, userId) {
         };
     }
     try {
-        const supabase = await (0, server_1.createClient)();
+        const supabase = supabase_1.supabaseAdmin;
         const systemId = pageContext.systemId;
         // PRIMARY SOURCE: User System RAG (tenant-isolated)
         let systemDescription = 'No system data available';
@@ -309,7 +309,7 @@ async function getSystemAnalysisContext(userMessage, pageContext, userId) {
  */
 async function getActionContext(userMessage, pageContext, userId) {
     try {
-        const supabase = await (0, server_1.createClient)();
+        const supabase = supabase_1.supabaseAdmin;
         let availableWorkflows = [];
         const pendingTasks = [];
         let nextSteps = [];

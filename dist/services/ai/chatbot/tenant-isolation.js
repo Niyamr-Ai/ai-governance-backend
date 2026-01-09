@@ -10,7 +10,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.verifySystemAccess = verifySystemAccess;
 exports.enforceTenantIsolation = enforceTenantIsolation;
-const server_1 = require("../../../utils/supabase/server");
+const supabase_1 = require("../../../src/lib/supabase");
 /**
  * Verify user has access to a system
  *
@@ -20,7 +20,7 @@ const server_1 = require("../../../utils/supabase/server");
  */
 async function verifySystemAccess(userId, systemId) {
     try {
-        const supabase = await (0, server_1.createClient)();
+        const supabase = supabase_1.supabaseAdmin;
         // Check if system exists and user has access (RLS enforces this)
         // Explicitly verify by attempting to read the system
         const { data: system, error } = await supabase
@@ -61,9 +61,9 @@ async function verifySystemAccess(userId, systemId) {
  */
 async function enforceTenantIsolation(userId, systemId, mode) {
     // EXPLAIN mode doesn't require system access
-    if (mode === 'EXPLAIN') {
-        return;
-    }
+    // if (mode === 'EXPLAIN') {
+    //   return;
+    // }
     // SYSTEM_ANALYSIS mode always requires systemId
     if (mode === 'SYSTEM_ANALYSIS' && !systemId) {
         throw new Error(`System ID is required for ${mode} mode. Please provide a valid system ID in page context.`);

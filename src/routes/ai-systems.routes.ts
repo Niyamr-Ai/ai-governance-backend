@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { authenticateToken } from '../middleware/auth';
 import { listAISystems, getSystemTasks, postBlockerResolutions, getComplianceData, getDocumentation, postDocumentation, getOverallRisk, getSystemPolicies, postSystemPolicy, getSystemRiskAssessments, postSystemRiskAssessment, postRiskMitigations, getRiskTrends, postSmartRiskAssessment, postTransitionPlan, postTransitionReadiness, updateSystemPolicyMapping, deleteSystemPolicyMapping } from '../controllers/ai-systems.controller';
-import { getLifecycle, updateLifecycle } from '../../api/ai-systems/[id]/lifecycle/route';
 
 const router = Router();
 
@@ -58,11 +57,5 @@ router.put('/:id/policies/:mappingId', authenticateToken, updateSystemPolicyMapp
 
 // DELETE /api/ai-systems/:id/policies/:mappingId
 router.delete('/:id/policies/:mappingId', authenticateToken, deleteSystemPolicyMapping);
-
-// GET /api/ai-systems/:id/lifecycle
-router.get('/:id/lifecycle', authenticateToken, getLifecycle);
-
-// PUT /api/ai-systems/:id/lifecycle
-router.put('/:id/lifecycle', authenticateToken, updateLifecycle);
 
 export default router;

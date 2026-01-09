@@ -9,8 +9,7 @@ exports.getGovernanceSuggestions = getGovernanceSuggestions;
 exports.analyzeCompletionImpact = analyzeCompletionImpact;
 exports.updateGovernanceTask = updateGovernanceTask;
 exports.getContextualHelp = getContextualHelp;
-const server_1 = require("../../utils/supabase/server");
-const auth_1 = require("../../middleware/auth");
+const supabase_1 = require("../../src/lib/supabase");
 const smart_governance_suggestions_1 = require("../../services/governance/smart-governance-suggestions");
 const governance_tasks_1 = require("../../services/governance/governance-tasks");
 const ALLOWED_STATUSES = [
@@ -24,10 +23,7 @@ const ALLOWED_STATUSES = [
  */
 async function getGovernanceSuggestions(req, res) {
     try {
-        const userId = await (0, auth_1.getUserId)(req);
-        if (!userId) {
-            return res.status(401).json({ error: "Authentication required" });
-        }
+        const userId = req.user.sub;
         const body = req.body;
         const { systemId, systemName, systemDescription, riskLevel, complianceStatus, lifecycleStage, regulation, existingTasks = [], completedTasks = [], maxSuggestions = 8 } = body;
         // Validate required fields
@@ -81,10 +77,7 @@ async function getGovernanceSuggestions(req, res) {
  */
 async function analyzeCompletionImpact(req, res) {
     try {
-        const userId = await (0, auth_1.getUserId)(req);
-        if (!userId) {
-            return res.status(401).json({ error: "Authentication required" });
-        }
+        const userId = req.user.sub;
         const body = req.body;
         const { completedTaskTitle, systemId, systemName, systemDescription, riskLevel, complianceStatus, lifecycleStage, regulation, existingTasks = [], completedTasks = [] } = body;
         // Validate required fields
@@ -137,14 +130,11 @@ async function analyzeCompletionImpact(req, res) {
  */
 async function updateGovernanceTask(req, res) {
     try {
-        const userId = await (0, auth_1.getUserId)(req);
-        if (!userId) {
-            return res.status(401).json({ error: "Unauthorized" });
-        }
+        const userId = req.user.sub;
         const { taskId } = req.params;
         const body = req.body || {};
         const { status, evidence_link } = body;
-        const supabase = await (0, server_1.createClient)();
+        const supabase = supabase_1.supabaseAdmin;
         const { data: existingTask, error: fetchError } = await supabase
             .from("governance_tasks")
             .select("*")
@@ -209,10 +199,7 @@ async function updateGovernanceTask(req, res) {
  */
 async function getContextualHelp(req, res) {
     try {
-        const userId = await (0, auth_1.getUserId)(req);
-        if (!userId) {
-            return res.status(401).json({ error: "Authentication required" });
-        }
+        const userId = req.user.sub;
         const body = req.body;
         const { taskTitle, taskDescription, systemId, systemName, systemDescription, riskLevel, complianceStatus, lifecycleStage, regulation, existingTasks = [], completedTasks = [] } = body;
         // Validate required fields

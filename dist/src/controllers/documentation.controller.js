@@ -6,19 +6,18 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getDocumentation = getDocumentation;
-const server_1 = require("../../utils/supabase/server");
-const auth_1 = require("../../middleware/auth");
+const supabase_1 = require("../../src/lib/supabase");
 /**
  * GET /api/documentation
  * Returns all documentation across all AI systems with system information
  */
 async function getDocumentation(req, res) {
     try {
-        const userId = await (0, auth_1.getUserId)(req);
+        const userId = req.user?.sub;
         if (!userId) {
-            return res.status(401).json({ error: "Unauthorized" });
+            return res.status(401).json({ message: "Unauthorized" });
         }
-        const supabase = await (0, server_1.createClient)();
+        const supabase = supabase_1.supabaseAdmin;
         // Filter parameters
         const regulationType = req.query.regulation_type;
         const documentType = req.query.document_type;

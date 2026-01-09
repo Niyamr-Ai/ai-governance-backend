@@ -6,37 +6,44 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getUserRole = getUserRole;
-const server_1 = require("../../utils/supabase/server");
-const auth_1 = require("../../middleware/auth");
 /**
  * GET /api/user/role
  * Returns the current user's role (user or admin/compliance)
  */
 async function getUserRole(req, res) {
+    console.log("🚨🚨🚨 [BACKEND] GETUSERROLE CONTROLLER CALLED 🚨🚨🚨");
+    console.log("🔍 [BACKEND] getUserRole called");
+    console.log("🔍 [BACKEND] req.user:", req.user);
+    console.log("🔍 [BACKEND] typeof req.user:", typeof req.user);
     try {
-        const userId = await (0, auth_1.getUserId)(req);
-        if (!userId) {
+        console.log("🔍 [BACKEND] req.user exists:", !!req.user);
+        if (!req.user) {
+            console.log("❌ [BACKEND] No user found in request - middleware may not have run");
             return res.status(401).json({ error: "Unauthorized" });
         }
-        const supabase = await (0, server_1.createClient)();
-        const { data: user } = await supabase.auth.getUser();
-        if (!user?.user) {
-            return res.status(404).json({ error: "User not found" });
-        }
-        // Check role from user metadata
-        const role = user.user.user_metadata?.role || 'user';
-        const isAdmin = role === 'admin' || role === 'Admin' || role === 'compliance';
+        const user = req.user;
+        const userId = user.sub;
+        console.log("🔍 [BACKEND] User ID:", userId);
+        console.log("🔍 [BACKEND] Full user object:", JSON.stringify(user, null, 2));
+        // For now, return default user role
+        // TODO: Implement proper role checking from database or JWT metadata
+        const role = 'user';
+        const isAdmin = false;
+        console.log("✅ [BACKEND] Returning user role response");
         return res.status(200).json({
-            userId: user.user.id,
-            role: isAdmin ? 'admin' : 'user',
+            userId: userId,
+            role: 'user',
             rawRole: role
         });
     }
     catch (error) {
-        console.error("GET /api/user/role error:", error);
+        console.error("❌ [BACKEND] GET /api/user/role error:", error);
+        console.error("❌ [BACKEND] Error message:", error.message);
+        console.error("❌ [BACKEND] Error stack:", error.stack);
         return res.status(500).json({
             error: "Internal server error",
-            details: error.message
+            details: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
     }
 }

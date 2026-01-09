@@ -4,39 +4,6 @@
  *
  * GET /api/ai-systems/list - Get all AI systems from EU, UK, MAS, and Registry tables
  */
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.listAISystems = listAISystems;
 exports.getSystemTasks = getSystemTasks;
@@ -56,8 +23,7 @@ exports.postDocumentation = postDocumentation;
 exports.getComplianceData = getComplianceData;
 exports.updateSystemPolicyMapping = updateSystemPolicyMapping;
 exports.deleteSystemPolicyMapping = deleteSystemPolicyMapping;
-const server_1 = require("../../utils/supabase/server");
-const auth_1 = require("../../middleware/auth");
+const client_1 = require("../utils/supabase/client");
 const governance_tasks_1 = require("../../services/governance/governance-tasks");
 const smart_lifecycle_transition_1 = require("../../services/governance/smart-lifecycle-transition");
 const openai_1 = require("openai");
@@ -71,22 +37,21 @@ const smart_lifecycle_transition_2 = require("../../services/governance/smart-li
  */
 async function listAISystems(req, res) {
     try {
-        const userId = await (0, auth_1.getUserId)(req);
+        const userId = req.user?.sub;
         if (!userId) {
-            return res.status(401).json({ error: "Unauthorized" });
+            return res.status(401).json({ message: "Unauthorized" });
         }
-        const supabase = await (0, server_1.createClient)();
         // Fetch systems from all compliance tables
         const [euSystems, ukSystems, masSystems] = await Promise.all([
-            supabase
+            client_1.supabase
                 .from("eu_ai_act_check_results")
                 .select("id, system_name, created_at")
                 .order("created_at", { ascending: false }),
-            supabase
+            client_1.supabase
                 .from("uk_ai_assessments")
                 .select("id, system_name, created_at")
                 .order("created_at", { ascending: false }),
-            supabase
+            client_1.supabase
                 .from("mas_ai_risk_assessments")
                 .select("id, system_name, created_at")
                 .order("created_at", { ascending: false }),
@@ -128,9 +93,9 @@ async function listAISystems(req, res) {
  */
 async function getSystemTasks(req, res) {
     try {
-        const userId = await (0, auth_1.getUserId)(req);
+        const userId = req.user?.sub;
         if (!userId) {
-            return res.status(401).json({ error: "Unauthorized" });
+            return res.status(401).json({ message: "Unauthorized" });
         }
         const { id: systemId } = req.params;
         const tasks = await (0, governance_tasks_1.evaluateGovernanceTasks)(systemId);
@@ -150,9 +115,9 @@ async function getSystemTasks(req, res) {
  */
 async function postBlockerResolutions(req, res) {
     try {
-        const userId = await (0, auth_1.getUserId)(req);
+        const userId = req.user?.sub;
         if (!userId) {
-            return res.status(401).json({ error: "Authentication required" });
+            return res.status(401).json({ message: "Unauthorized" });
         }
         const { id: systemId } = req.params;
         const { blockers } = req.body;
@@ -160,13 +125,12 @@ async function postBlockerResolutions(req, res) {
         if (!blockers || !Array.isArray(blockers) || blockers.length === 0) {
             return res.status(400).json({ error: "Blockers array is required" });
         }
-        const supabase = await (0, server_1.createClient)();
         // Get system data from multiple sources
         const [{ data: euData }, { data: ukData }, { data: masData }, { data: registryData }] = await Promise.all([
-            supabase.from("eu_ai_act_check_results").select("*").eq("id", systemId).maybeSingle(),
-            supabase.from("uk_ai_assessments").select("*").eq("id", systemId).maybeSingle(),
-            supabase.from("mas_ai_risk_assessments").select("*").eq("id", systemId).maybeSingle(),
-            supabase.from("ai_system_registry").select("*").eq("system_id", systemId).maybeSingle()
+            client_1.supabase.from("eu_ai_act_check_results").select("*").eq("id", systemId).maybeSingle(),
+            client_1.supabase.from("uk_ai_assessments").select("*").eq("id", systemId).maybeSingle(),
+            client_1.supabase.from("mas_ai_risk_assessments").select("*").eq("id", systemId).maybeSingle(),
+            client_1.supabase.from("ai_system_registry").select("*").eq("system_id", systemId).maybeSingle()
         ]);
         // Determine primary system data and regulation type
         let systemData = null;
@@ -330,14 +294,13 @@ const openai = OPEN_AI_KEY ? new openai_1.OpenAI({ apiKey: OPEN_AI_KEY }) : null
  */
 async function getDocumentation(req, res) {
     try {
-        const userId = await (0, auth_1.getUserId)(req);
+        const userId = req.user?.sub;
         if (!userId) {
-            return res.status(401).json({ error: "Unauthorized" });
+            return res.status(401).json({ message: "Unauthorized" });
         }
         const { id: systemId } = req.params;
-        const supabase = await (0, server_1.createClient)();
         // Fetch all documentation for this system
-        const { data: docs, error } = await supabase
+        const { data: docs, error } = await client_1.supabase
             .from("compliance_documentation")
             .select("*")
             .eq("ai_system_id", systemId)
@@ -362,14 +325,13 @@ async function getDocumentation(req, res) {
  */
 async function getOverallRisk(req, res) {
     try {
-        const userId = await (0, auth_1.getUserId)(req);
+        const userId = req.user?.sub;
         if (!userId) {
-            return res.status(401).json({ error: "Unauthorized" });
+            return res.status(401).json({ message: "Unauthorized" });
         }
         const { id: aiSystemId } = req.params;
-        const supabase = await (0, server_1.createClient)();
         // Fetch all risk assessments for this system
-        const { data: assessments, error } = await supabase
+        const { data: assessments, error } = await client_1.supabase
             .from("risk_assessments")
             .select("*")
             .eq("ai_system_id", aiSystemId);
@@ -398,15 +360,13 @@ async function getOverallRisk(req, res) {
  */
 async function getSystemPolicies(req, res) {
     try {
-        const supabase = await (0, server_1.createClient)();
-        // Check authentication
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-        if (authError || !user) {
-            return res.status(401).json({ error: "Unauthorized" });
+        const userId = req.user?.sub;
+        if (!userId) {
+            return res.status(401).json({ message: "Unauthorized" });
         }
         const { id: systemId } = req.params;
         // Fetch mappings with policy details
-        const { data: mappings, error } = await supabase
+        const { data: mappings, error } = await client_1.supabase
             .from("system_policy_mappings")
             .select(`
         *,
@@ -430,11 +390,9 @@ async function getSystemPolicies(req, res) {
  */
 async function postSystemPolicy(req, res) {
     try {
-        const supabase = await (0, server_1.createClient)();
-        // Check authentication
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-        if (authError || !user) {
-            return res.status(401).json({ error: "Unauthorized" });
+        const userId = req.user?.sub;
+        if (!userId) {
+            return res.status(401).json({ message: "Unauthorized" });
         }
         const { id: systemId } = req.params;
         const body = req.body;
@@ -443,7 +401,7 @@ async function postSystemPolicy(req, res) {
             return res.status(400).json({ error: "Policy ID is required" });
         }
         // Check if mapping already exists
-        const { data: existing } = await supabase
+        const { data: existing } = await client_1.supabase
             .from("system_policy_mappings")
             .select("id")
             .eq("policy_id", body.policy_id)
@@ -453,14 +411,14 @@ async function postSystemPolicy(req, res) {
             return res.status(409).json({ error: "Policy already mapped to this system" });
         }
         // Create mapping
-        const { data: mapping, error } = await supabase
+        const { data: mapping, error } = await client_1.supabase
             .from("system_policy_mappings")
             .insert({
             policy_id: body.policy_id,
             ai_system_id: systemId,
             compliance_status: body.compliance_status || "Not assessed",
             notes: body.notes || null,
-            assessed_by: user.id,
+            assessed_by: userId,
             assessed_at: new Date().toISOString(),
         })
             .select()
@@ -482,14 +440,13 @@ async function postSystemPolicy(req, res) {
  */
 async function getSystemRiskAssessments(req, res) {
     try {
-        const userId = await (0, auth_1.getUserId)(req);
+        const userId = req.user?.sub;
         if (!userId) {
-            return res.status(401).json({ error: "Unauthorized" });
+            return res.status(401).json({ message: "Unauthorized" });
         }
         const { id: aiSystemId } = req.params;
-        const supabase = await (0, server_1.createClient)();
         // Fetch all risk assessments for this system
-        const { data: assessments, error } = await supabase
+        const { data: assessments, error } = await client_1.supabase
             .from("risk_assessments")
             .select("*")
             .eq("ai_system_id", aiSystemId)
@@ -517,9 +474,9 @@ async function getSystemRiskAssessments(req, res) {
  */
 async function postSystemRiskAssessment(req, res) {
     try {
-        const userId = await (0, auth_1.getUserId)(req);
+        const userId = req.user?.sub;
         if (!userId) {
-            return res.status(401).json({ error: "Unauthorized" });
+            return res.status(401).json({ message: "Unauthorized" });
         }
         const { id: aiSystemId } = req.params;
         const body = req.body;
@@ -543,8 +500,6 @@ async function postSystemRiskAssessment(req, res) {
                 error: `Invalid risk_level. Must be one of: ${validRiskLevels.join(', ')}`
             });
         }
-        // Create Supabase client
-        const supabase = await (0, server_1.createClient)();
         // Governance Rule: High risk assessments require evidence
         if (body.risk_level === 'high' && (!body.evidence_links || body.evidence_links.length === 0)) {
             return res.status(400).json({
@@ -568,7 +523,7 @@ async function postSystemRiskAssessment(req, res) {
             evidence_links: body.evidence_links || [],
         };
         // Insert risk assessment
-        const { data: assessment, error: insertError } = await supabase
+        const { data: assessment, error: insertError } = await client_1.supabase
             .from("risk_assessments")
             .insert([assessmentData])
             .select()
@@ -608,9 +563,9 @@ async function postSystemRiskAssessment(req, res) {
  */
 async function postRiskMitigations(req, res) {
     try {
-        const userId = await (0, auth_1.getUserId)(req);
+        const userId = req.user?.sub;
         if (!userId) {
-            return res.status(401).json({ error: "Authentication required" });
+            return res.status(401).json({ message: "Unauthorized" });
         }
         const { id: systemId } = req.params;
         const { risk_factors } = req.body;
@@ -618,13 +573,12 @@ async function postRiskMitigations(req, res) {
         if (!risk_factors || !Array.isArray(risk_factors) || risk_factors.length === 0) {
             return res.status(400).json({ error: "Risk factors array is required" });
         }
-        const supabase = await (0, server_1.createClient)();
         // Get system information
         const [{ data: euData }, { data: ukData }, { data: masData }, { data: registryData }] = await Promise.all([
-            supabase.from("eu_ai_act_check_results").select("*").eq("id", systemId).maybeSingle(),
-            supabase.from("uk_ai_assessments").select("*").eq("id", systemId).maybeSingle(),
-            supabase.from("mas_ai_risk_assessments").select("*").eq("id", systemId).maybeSingle(),
-            supabase.from("ai_system_registry").select("*").eq("system_id", systemId).maybeSingle()
+            client_1.supabase.from("eu_ai_act_check_results").select("*").eq("id", systemId).maybeSingle(),
+            client_1.supabase.from("uk_ai_assessments").select("*").eq("id", systemId).maybeSingle(),
+            client_1.supabase.from("mas_ai_risk_assessments").select("*").eq("id", systemId).maybeSingle(),
+            client_1.supabase.from("ai_system_registry").select("*").eq("system_id", systemId).maybeSingle()
         ]);
         // Determine system context
         let systemData = null;
@@ -705,15 +659,14 @@ async function postRiskMitigations(req, res) {
  */
 async function getRiskTrends(req, res) {
     try {
-        const userId = await (0, auth_1.getUserId)(req);
+        const userId = req.user?.sub;
         if (!userId) {
-            return res.status(401).json({ error: "Authentication required" });
+            return res.status(401).json({ message: "Unauthorized" });
         }
         const { id: systemId } = req.params;
         const includeIndustryBenchmarks = req.query.include_benchmarks === 'true';
-        const supabase = await (0, server_1.createClient)();
         // Fetch historical risk assessments for this system
-        const { data: historicalAssessments, error: historyError } = await supabase
+        const { data: historicalAssessments, error: historyError } = await client_1.supabase
             .from("automated_risk_assessments")
             .select(`
         assessed_at,
@@ -784,7 +737,7 @@ async function getRiskTrends(req, res) {
         if (includeIndustryBenchmarks) {
             try {
                 // Calculate industry averages from all systems (simplified approach)
-                const { data: industryData } = await supabase
+                const { data: industryData } = await client_1.supabase
                     .from("automated_risk_assessments")
                     .select("composite_score, overall_risk_level, assessed_at")
                     .gte("assessed_at", new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString()) // Last year
@@ -857,19 +810,18 @@ async function getRiskTrends(req, res) {
  */
 async function postSmartRiskAssessment(req, res) {
     try {
-        const userId = await (0, auth_1.getUserId)(req);
+        const userId = req.user?.sub;
         if (!userId) {
-            return res.status(401).json({ error: "Authentication required" });
+            return res.status(401).json({ message: "Unauthorized" });
         }
         const { id: systemId } = req.params;
         const { include_organization_history = false } = req.body;
-        const supabase = await (0, server_1.createClient)();
         // Gather comprehensive system data
         const [{ data: euData }, { data: ukData }, { data: masData }, { data: registryData }] = await Promise.all([
-            supabase.from("eu_ai_act_check_results").select("*").eq("id", systemId).maybeSingle(),
-            supabase.from("uk_ai_assessments").select("*").eq("id", systemId).maybeSingle(),
-            supabase.from("mas_ai_risk_assessments").select("*").eq("id", systemId).maybeSingle(),
-            supabase.from("ai_system_registry").select("*").eq("system_id", systemId).maybeSingle()
+            client_1.supabase.from("eu_ai_act_check_results").select("*").eq("id", systemId).maybeSingle(),
+            client_1.supabase.from("uk_ai_assessments").select("*").eq("id", systemId).maybeSingle(),
+            client_1.supabase.from("mas_ai_risk_assessments").select("*").eq("id", systemId).maybeSingle(),
+            client_1.supabase.from("ai_system_registry").select("*").eq("system_id", systemId).maybeSingle()
         ]);
         // Determine primary system data and regulation type
         let systemData = null;
@@ -908,7 +860,7 @@ async function postSmartRiskAssessment(req, res) {
         let organizationHistory;
         if (include_organization_history) {
             try {
-                const { data: previousAssessments } = await supabase
+                const { data: previousAssessments } = await client_1.supabase
                     .from("automated_risk_assessments")
                     .select("assessed_at, overall_risk_level, executive_summary")
                     .eq("ai_system_id", systemId)
@@ -935,7 +887,7 @@ async function postSmartRiskAssessment(req, res) {
         // Generate contextual risk assessment using RAG
         const contextualAssessment = await (0, smart_assessment_1.generateContextualRiskAssessment)(assessmentSystemData, userId, organizationHistory);
         // Save the assessment to database
-        const { data: savedAssessment, error: saveError } = await supabase
+        const { data: savedAssessment, error: saveError } = await client_1.supabase
             .from("automated_risk_assessments")
             .insert({
             ai_system_id: systemId,
@@ -995,9 +947,9 @@ async function postSmartRiskAssessment(req, res) {
  */
 async function postTransitionPlan(req, res) {
     try {
-        const userId = await (0, auth_1.getUserId)(req);
+        const userId = req.user?.sub;
         if (!userId) {
-            return res.status(401).json({ error: "Authentication required" });
+            return res.status(401).json({ message: "Unauthorized" });
         }
         const { id: systemId } = req.params;
         const { from_stage, to_stage, readiness_assessment } = req.body;
@@ -1018,13 +970,12 @@ async function postTransitionPlan(req, res) {
         if (from_stage === to_stage) {
             return res.status(400).json({ error: "From stage and to stage cannot be the same" });
         }
-        const supabase = await (0, server_1.createClient)();
         // Get system data from multiple sources
         const [{ data: euData }, { data: ukData }, { data: masData }, { data: registryData }] = await Promise.all([
-            supabase.from("eu_ai_act_check_results").select("*").eq("id", systemId).maybeSingle(),
-            supabase.from("uk_ai_assessments").select("*").eq("id", systemId).maybeSingle(),
-            supabase.from("mas_ai_risk_assessments").select("*").eq("id", systemId).maybeSingle(),
-            supabase.from("ai_system_registry").select("*").eq("system_id", systemId).maybeSingle()
+            client_1.supabase.from("eu_ai_act_check_results").select("*").eq("id", systemId).maybeSingle(),
+            client_1.supabase.from("uk_ai_assessments").select("*").eq("id", systemId).maybeSingle(),
+            client_1.supabase.from("mas_ai_risk_assessments").select("*").eq("id", systemId).maybeSingle(),
+            client_1.supabase.from("ai_system_registry").select("*").eq("system_id", systemId).maybeSingle()
         ]);
         // Determine primary system data and regulation type
         let systemData = null;
@@ -1137,9 +1088,9 @@ async function postTransitionPlan(req, res) {
  */
 async function postTransitionReadiness(req, res) {
     try {
-        const userId = await (0, auth_1.getUserId)(req);
+        const userId = req.user?.sub;
         if (!userId) {
-            return res.status(401).json({ error: "Authentication required" });
+            return res.status(401).json({ message: "Unauthorized" });
         }
         const { id: systemId } = req.params;
         const { target_stage } = req.body;
@@ -1154,13 +1105,12 @@ async function postTransitionReadiness(req, res) {
                 error: `Invalid target stage. Must be one of: ${validStages.join(', ')}`
             });
         }
-        const supabase = await (0, server_1.createClient)();
         // Get system data from multiple sources
         const [{ data: euData }, { data: ukData }, { data: masData }, { data: registryData }] = await Promise.all([
-            supabase.from("eu_ai_act_check_results").select("*").eq("id", systemId).maybeSingle(),
-            supabase.from("uk_ai_assessments").select("*").eq("id", systemId).maybeSingle(),
-            supabase.from("mas_ai_risk_assessments").select("*").eq("id", systemId).maybeSingle(),
-            supabase.from("ai_system_registry").select("*").eq("system_id", systemId).maybeSingle()
+            client_1.supabase.from("eu_ai_act_check_results").select("*").eq("id", systemId).maybeSingle(),
+            client_1.supabase.from("uk_ai_assessments").select("*").eq("id", systemId).maybeSingle(),
+            client_1.supabase.from("mas_ai_risk_assessments").select("*").eq("id", systemId).maybeSingle(),
+            client_1.supabase.from("ai_system_registry").select("*").eq("system_id", systemId).maybeSingle()
         ]);
         // Determine primary system data and regulation type
         let systemData = null;
@@ -1284,9 +1234,9 @@ async function postTransitionReadiness(req, res) {
  */
 async function postDocumentation(req, res) {
     try {
-        const userId = await (0, auth_1.getUserId)(req);
+        const userId = req.user?.sub;
         if (!userId) {
-            return res.status(401).json({ error: "Unauthorized" });
+            return res.status(401).json({ message: "Unauthorized" });
         }
         const { id: systemId } = req.params;
         const body = req.body;
@@ -1295,14 +1245,13 @@ async function postDocumentation(req, res) {
         if (!document_type) {
             document_type = 'Compliance Summary';
         }
-        const supabase = await (0, server_1.createClient)();
         // Smart Default: Auto-detect regulation type if not provided
         if (!regulation_type) {
             // Check which tables have this system ID
             const [euCheck, ukCheck, masCheck] = await Promise.all([
-                supabase.from("eu_ai_act_check_results").select("id").eq("id", systemId).maybeSingle(),
-                supabase.from("uk_ai_assessments").select("id").eq("id", systemId).maybeSingle(),
-                supabase.from("mas_ai_risk_assessments").select("id").eq("id", systemId).maybeSingle(),
+                client_1.supabase.from("eu_ai_act_check_results").select("id").eq("id", systemId).maybeSingle(),
+                client_1.supabase.from("uk_ai_assessments").select("id").eq("id", systemId).maybeSingle(),
+                client_1.supabase.from("mas_ai_risk_assessments").select("id").eq("id", systemId).maybeSingle(),
             ]);
             if (euCheck.data) {
                 regulation_type = 'EU AI Act';
@@ -1326,14 +1275,14 @@ async function postDocumentation(req, res) {
             });
         }
         // Gather system data based on regulation type
-        const systemData = await gatherSystemData(supabase, systemId, regulation_type);
+        const systemData = await gatherSystemData(client_1.supabase, systemId, regulation_type);
         if (!systemData) {
             return res.status(404).json({
                 error: `No ${regulation_type} assessment found for this system`
             });
         }
         // Get approved risk assessments (only approved status)
-        const { data: riskAssessments } = await supabase
+        const { data: riskAssessments } = await client_1.supabase
             .from("risk_assessments")
             .select("*")
             .eq("ai_system_id", systemId)
@@ -1356,7 +1305,7 @@ async function postDocumentation(req, res) {
             systemId
         });
         // Determine next version (per document type)
-        const { data: existingDocs } = await supabase
+        const { data: existingDocs } = await client_1.supabase
             .from("compliance_documentation")
             .select("version")
             .eq("ai_system_id", systemId)
@@ -1371,7 +1320,7 @@ async function postDocumentation(req, res) {
             nextVersion = `${major}.${minor + 1}`;
         }
         // Mark old documents of the same type as outdated
-        await supabase
+        await client_1.supabase
             .from("compliance_documentation")
             .update({ status: "outdated" })
             .eq("ai_system_id", systemId)
@@ -1400,7 +1349,7 @@ async function postDocumentation(req, res) {
             bias_metrics: Object.keys(biasMetrics).length > 0 ? biasMetrics : undefined,
         };
         // Save new documentation
-        const { data: newDoc, error: insertError } = await supabase
+        const { data: newDoc, error: insertError } = await client_1.supabase
             .from("compliance_documentation")
             .insert({
             ai_system_id: systemId,
@@ -1439,28 +1388,27 @@ async function postDocumentation(req, res) {
  */
 async function getComplianceData(req, res) {
     try {
-        const userId = await (0, auth_1.getUserId)(req);
+        const userId = req.user?.sub;
         if (!userId) {
-            return res.status(401).json({ error: "Unauthorized" });
+            return res.status(401).json({ message: "Unauthorized" });
         }
         const { id: systemId } = req.params;
-        const supabase = await (0, server_1.createClient)();
         // Check all three compliance tables for this system ID
         const [euResult, masResult, ukResult] = await Promise.all([
             // EU AI Act Compliance
-            supabase
+            client_1.supabase
                 .from("eu_ai_act_check_results")
                 .select("*")
                 .eq("id", systemId)
                 .maybeSingle(),
             // MAS
-            supabase
+            client_1.supabase
                 .from("mas_ai_risk_assessments")
                 .select("*")
                 .eq("id", systemId)
                 .maybeSingle(),
             // UK AI Act
-            supabase
+            client_1.supabase
                 .from("uk_ai_assessments")
                 .select("*")
                 .eq("id", systemId)
@@ -1917,22 +1865,19 @@ Format as a chronological log with clear timestamps. Use markdown formatting wit
  */
 async function updateSystemPolicyMapping(req, res) {
     try {
-        const { createClient } = await Promise.resolve().then(() => __importStar(require("../../utils/supabase/server")));
-        const supabase = await createClient();
-        // Check authentication
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-        if (authError || !user) {
-            return res.status(401).json({ error: "Unauthorized" });
+        const userId = req.user?.sub;
+        if (!userId) {
+            return res.status(401).json({ message: "Unauthorized" });
         }
         const { mappingId } = req.params;
         const body = req.body;
         // Update mapping
-        const { data: mapping, error } = await supabase
+        const { data: mapping, error } = await client_1.supabase
             .from("system_policy_mappings")
             .update({
             compliance_status: body.compliance_status,
             notes: body.notes,
-            assessed_by: user.id,
+            assessed_by: userId,
             assessed_at: new Date().toISOString(),
         })
             .eq("id", mappingId)
@@ -1957,16 +1902,13 @@ async function updateSystemPolicyMapping(req, res) {
  */
 async function deleteSystemPolicyMapping(req, res) {
     try {
-        const { createClient } = await Promise.resolve().then(() => __importStar(require("../../utils/supabase/server")));
-        const supabase = await createClient();
-        // Check authentication
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-        if (authError || !user) {
-            return res.status(401).json({ error: "Unauthorized" });
+        const userId = req.user?.sub;
+        if (!userId) {
+            return res.status(401).json({ message: "Unauthorized" });
         }
         const { mappingId } = req.params;
         // Delete mapping
-        const { error } = await supabase
+        const { error } = await client_1.supabase
             .from("system_policy_mappings")
             .delete()
             .eq("id", mappingId);

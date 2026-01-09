@@ -9,8 +9,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getAutomatedRiskAssessment = getAutomatedRiskAssessment;
 exports.createAutomatedRiskAssessment = createAutomatedRiskAssessment;
 exports.approveAutomatedRiskAssessment = approveAutomatedRiskAssessment;
-const server_1 = require("../../utils/supabase/server");
-const auth_1 = require("../../middleware/auth");
+const supabase_1 = require("../../src/lib/supabase");
 const automated_risk_scoring_1 = require("../../services/risk-assessment/automated-risk-scoring");
 const openai_1 = require("openai");
 function getOpenAIClient() {
@@ -24,7 +23,7 @@ function getOpenAIClient() {
  * Gather all system data needed for risk assessment
  */
 async function gatherSystemData(systemId) {
-    const supabase = await (0, server_1.createClient)();
+    const supabase = supabase_1.supabaseAdmin;
     // Fetch compliance assessments (EU, UK, MAS)
     const [euResult, ukResult, masResult] = await Promise.all([
         supabase.from("eu_ai_act_check_results").select("*").eq("id", systemId).maybeSingle(),
@@ -300,12 +299,12 @@ Return ONLY a JSON object with these 4 string fields. Each field value must be f
  */
 async function getAutomatedRiskAssessment(req, res) {
     try {
-        const userId = await (0, auth_1.getUserId)(req);
+        const userId = req.user?.sub;
         if (!userId) {
-            return res.status(401).json({ error: "Unauthorized" });
+            return res.status(401).json({ message: "Unauthorized" });
         }
         const { id: systemId } = req.params;
-        const supabase = await (0, server_1.createClient)();
+        const supabase = supabase_1.supabaseAdmin;
         // Fetch most recent assessment
         const { data, error } = await supabase
             .from("automated_risk_assessments")
@@ -335,10 +334,7 @@ async function getAutomatedRiskAssessment(req, res) {
  */
 async function createAutomatedRiskAssessment(req, res) {
     try {
-        const userId = await (0, auth_1.getUserId)(req);
-        if (!userId) {
-            return res.status(401).json({ error: "Unauthorized" });
-        }
+        const userId = req.user?.sub;
         const { id: systemId } = req.params;
         const body = req.body || {};
         const { trigger_type = "manual", weights } = body;
@@ -470,7 +466,7 @@ async function createAutomatedRiskAssessment(req, res) {
         const nextReviewDate = new Date();
         nextReviewDate.setMonth(nextReviewDate.getMonth() + reviewFrequencyMonths);
         // Save to database
-        const supabase = await (0, server_1.createClient)();
+        const supabase = supabase_1.supabaseAdmin;
         const { data: assessment, error: insertError } = await supabase
             .from("automated_risk_assessments")
             .insert([
@@ -523,7 +519,7 @@ async function createAutomatedRiskAssessment(req, res) {
  */
 async function approveAutomatedRiskAssessment(req, res) {
     try {
-        const userId = await (0, auth_1.getUserId)(req);
+        const userId = req.user?.sub;
         if (!userId) {
             return res.status(401).json({ error: "Unauthorized" });
         }
@@ -535,7 +531,7 @@ async function approveAutomatedRiskAssessment(req, res) {
                 error: "Invalid status. Must be 'approved', 'rejected', or 'needs_revision'"
             });
         }
-        const supabase = await (0, server_1.createClient)();
+        const supabase = supabase_1.supabaseAdmin;
         // Update assessment with approval status
         const updateData = {
             approval_status: status,

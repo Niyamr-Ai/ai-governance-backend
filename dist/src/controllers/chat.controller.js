@@ -13,7 +13,6 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.chatHandler = chatHandler;
-const auth_1 = require("../../middleware/auth");
 const intent_classifier_1 = require("../../services/ai/chatbot/intent-classifier");
 const context_providers_1 = require("../../services/ai/chatbot/context-providers");
 const prompts_1 = require("../../services/ai/chatbot/prompts");
@@ -61,42 +60,9 @@ async function generateResponse(prompt) {
  * Also converts secondary intents to suggested follow-up actions
  */
 function extractSuggestedActions(response, mode, secondaryIntents) {
-    const actions = [];
-    // For ACTION mode, look for numbered steps or bullet points
-    if (mode === 'ACTION') {
-        const stepMatches = response.match(/(?:^|\n)\d+\.\s+(.+?)(?:\n|$)/g);
-        if (stepMatches) {
-            stepMatches.forEach(match => {
-                const action = match.replace(/^\d+\.\s+/, '').trim();
-                if (action)
-                    actions.push(action);
-            });
-        }
-        // Also check for bullet points
-        const bulletMatches = response.match(/(?:^|\n)[-•]\s+(.+?)(?:\n|$)/g);
-        if (bulletMatches && actions.length === 0) {
-            bulletMatches.forEach(match => {
-                const action = match.replace(/^[-•]\s+/, '').trim();
-                if (action)
-                    actions.push(action);
-            });
-        }
-    }
-    // Convert secondary intents to suggested follow-up actions
-    if (secondaryIntents && secondaryIntents.length > 0) {
-        const modeLabels = {
-            EXPLAIN: 'Ask for explanation',
-            SYSTEM_ANALYSIS: 'Analyze your system',
-            ACTION: 'Get next steps'
-        };
-        secondaryIntents.forEach(intent => {
-            const suggestion = modeLabels[intent];
-            if (suggestion && !actions.includes(suggestion)) {
-                actions.push(suggestion);
-            }
-        });
-    }
-    return actions.slice(0, 5); // Limit to 5 actions
+    // Disable suggested actions to prevent UI clutter
+    // Users can ask follow-up questions naturally instead
+    return [];
 }
 /**
  * POST /api/chat
@@ -104,9 +70,9 @@ function extractSuggestedActions(response, mode, secondaryIntents) {
 async function chatHandler(req, res) {
     try {
         // Check authentication
-        const userId = await (0, auth_1.getUserId)(req);
+        const userId = req.user?.sub;
         if (!userId) {
-            return res.status(401).json({ error: 'Unauthorized' });
+            return res.status(401).json({ message: "Unauthorized" });
         }
         // Parse request body
         const body = req.body;

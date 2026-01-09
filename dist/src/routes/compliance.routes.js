@@ -1,18 +1,18 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
-const requireAuth_1 = require("../middleware/requireAuth");
+const auth_1 = require("../middleware/auth");
 const compliance_controller_1 = require("../controllers/compliance.controller");
 const router = (0, express_1.Router)();
 // GET /api/compliance
-router.get('/', requireAuth_1.requireAuth, compliance_controller_1.getCompliance);
+router.get('/', auth_1.authenticateToken, compliance_controller_1.getCompliance);
 // POST /api/compliance
-router.post('/', requireAuth_1.requireAuth, compliance_controller_1.postCompliance);
-// GET /api/compliance/:id
-router.get('/:id', requireAuth_1.requireAuth, compliance_controller_1.getComplianceById);
+router.post('/', auth_1.authenticateToken, compliance_controller_1.postCompliance);
 // GET /api/compliance/detailed
-router.get('/detailed', requireAuth_1.requireAuth, compliance_controller_1.getDetailedCompliance);
+router.get('/detailed', auth_1.authenticateToken, compliance_controller_1.getDetailedCompliance);
 // POST /api/compliance/detailed
-router.post('/detailed', requireAuth_1.requireAuth, compliance_controller_1.postDetailedCompliance);
+router.post('/detailed', auth_1.authenticateToken, compliance_controller_1.postDetailedCompliance);
+// GET /api/compliance/:id (must come last - most generic)
+router.get('/:id', auth_1.authenticateToken, compliance_controller_1.getComplianceById);
 exports.default = router;
 //# sourceMappingURL=compliance.routes.js.map

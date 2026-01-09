@@ -43,24 +43,20 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.analyzePolicyComplianceHandler = analyzePolicyComplianceHandler;
 exports.analyzePolicyConflicts = analyzePolicyConflicts;
 exports.analyzePolicyGaps = analyzePolicyGaps;
-const auth_1 = require("../../middleware/auth");
 /**
  * POST /api/policy-compliance/analyze - Analyze policy compliance
  */
 async function analyzePolicyComplianceHandler(req, res) {
     try {
-        const userId = await (0, auth_1.getUserId)(req);
-        if (!userId) {
-            return res.status(401).json({ error: "Authentication required" });
-        }
+        const userId = req.user.sub;
         const body = req.body;
         const { system_id, policy_ids } = body;
         // Validate required fields
         if (!system_id) {
             return res.status(400).json({ error: "Missing required field: system_id" });
         }
-        const { createClient } = await Promise.resolve().then(() => __importStar(require('../../utils/supabase/server')));
-        const supabase = await createClient();
+        const { supabaseAdmin } = await Promise.resolve().then(() => __importStar(require('../../src/lib/supabase')));
+        const supabase = supabaseAdmin;
         // Fetch AI system information
         const { data: systemInfo, error: systemError } = await supabase
             .from("ai_system_registry")
@@ -160,18 +156,15 @@ async function analyzePolicyComplianceHandler(req, res) {
  */
 async function analyzePolicyConflicts(req, res) {
     try {
-        const userId = await (0, auth_1.getUserId)(req);
-        if (!userId) {
-            return res.status(401).json({ error: "Authentication required" });
-        }
+        const userId = req.user.sub;
         const body = req.body;
         const { policy_ids, system_characteristics } = body;
         // Validate required fields
         if (!policy_ids || !Array.isArray(policy_ids) || policy_ids.length < 2) {
             return res.status(400).json({ error: "At least 2 policy IDs are required for conflict detection" });
         }
-        const { createClient } = await Promise.resolve().then(() => __importStar(require('../../utils/supabase/server')));
-        const supabase = await createClient();
+        const { supabaseAdmin } = await Promise.resolve().then(() => __importStar(require('../../src/lib/supabase')));
+        const supabase = supabaseAdmin;
         // Fetch policies with their requirements
         const { data: policies, error: policiesError } = await supabase
             .from("policies")
@@ -260,18 +253,15 @@ async function analyzePolicyConflicts(req, res) {
  */
 async function analyzePolicyGaps(req, res) {
     try {
-        const userId = await (0, auth_1.getUserId)(req);
-        if (!userId) {
-            return res.status(401).json({ error: "Authentication required" });
-        }
+        const userId = req.user.sub;
         const body = req.body;
         const { system_id } = body;
         // Validate required fields
         if (!system_id) {
             return res.status(400).json({ error: "Missing required field: system_id" });
         }
-        const { createClient } = await Promise.resolve().then(() => __importStar(require('../../utils/supabase/server')));
-        const supabase = await createClient();
+        const { supabaseAdmin } = await Promise.resolve().then(() => __importStar(require('../../src/lib/supabase')));
+        const supabase = supabaseAdmin;
         // Fetch AI system information
         const { data: systemInfo, error: systemError } = await supabase
             .from("ai_system_registry")
@@ -303,10 +293,10 @@ async function analyzePolicyGaps(req, res) {
         }
         // Transform policy mappings
         const applicablePolicies = policyMappings?.map(mapping => ({
-            id: mapping.policies.id,
-            name: mapping.policies.name,
-            description: mapping.policies.description || '',
-            policy_type: mapping.policies.policy_type,
+            id: mapping.policies[0].id,
+            name: mapping.policies[0].name,
+            description: mapping.policies[0].description || '',
+            policy_type: mapping.policies[0].policy_type,
             current_compliance_status: mapping.compliance_status
         })) || [];
         if (applicablePolicies.length === 0) {

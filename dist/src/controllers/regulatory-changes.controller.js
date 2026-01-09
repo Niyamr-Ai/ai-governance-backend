@@ -43,16 +43,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.generateActionPlan = generateActionPlan;
 exports.estimateEffort = estimateEffort;
 exports.analyzeImpact = analyzeImpact;
-const auth_1 = require("../../middleware/auth");
 /**
  * POST /api/regulatory-changes/action-plan - Generate compliance action plan
  */
 async function generateActionPlan(req, res) {
     try {
-        const userId = await (0, auth_1.getUserId)(req);
-        if (!userId) {
-            return res.status(401).json({ error: "Authentication required" });
-        }
+        const userId = req.user.sub;
         const body = req.body;
         const { impact_analysis, regulatory_change, organization_capacity } = body;
         // Validate required fields
@@ -143,10 +139,7 @@ async function generateActionPlan(req, res) {
  */
 async function estimateEffort(req, res) {
     try {
-        const userId = await (0, auth_1.getUserId)(req);
-        if (!userId) {
-            return res.status(401).json({ error: "Authentication required" });
-        }
+        const userId = req.user.sub;
         const body = req.body;
         const { required_changes, organization_capacity } = body;
         // Validate required fields
@@ -254,10 +247,7 @@ async function estimateEffort(req, res) {
  */
 async function analyzeImpact(req, res) {
     try {
-        const userId = await (0, auth_1.getUserId)(req);
-        if (!userId) {
-            return res.status(401).json({ error: "Authentication required" });
-        }
+        const userId = req.user.sub;
         const body = req.body;
         const { regulatory_change, system_ids } = body;
         // Validate required fields
@@ -267,8 +257,8 @@ async function analyzeImpact(req, res) {
         if (!system_ids || !Array.isArray(system_ids) || system_ids.length === 0) {
             return res.status(400).json({ error: "At least one system ID is required for impact analysis" });
         }
-        const { createClient } = await Promise.resolve().then(() => __importStar(require('../../utils/supabase/server')));
-        const supabase = await createClient();
+        const { supabaseAdmin } = await Promise.resolve().then(() => __importStar(require('../../src/lib/supabase')));
+        const supabase = supabaseAdmin;
         // Fetch system information for all requested systems
         const systemAnalyses = [];
         const errors = [];
