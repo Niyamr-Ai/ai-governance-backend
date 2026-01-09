@@ -7,18 +7,13 @@
  */
 
 import { Request, Response } from 'express';
-import { getUserId } from '../../middleware/auth';
 
 /**
  * POST /api/policy-compliance/analyze - Analyze policy compliance
  */
 export async function analyzePolicyComplianceHandler(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-
+    const userId = req.user!.sub;
     const body = req.body;
     const { system_id, policy_ids } = body;
 
@@ -27,8 +22,8 @@ export async function analyzePolicyComplianceHandler(req: Request, res: Response
       return res.status(400).json({ error: "Missing required field: system_id" });
     }
 
-    const { createClient } = await import('../../utils/supabase/server');
-    const supabase = await createClient();
+    const { supabaseAdmin } = await import('../../src/lib/supabase');
+    const supabase = supabaseAdmin;
 
     // Fetch AI system information
     const { data: systemInfo, error: systemError } = await supabase
@@ -145,11 +140,7 @@ export async function analyzePolicyComplianceHandler(req: Request, res: Response
  */
 export async function analyzePolicyConflicts(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-
+    const userId = req.user!.sub;
     const body = req.body;
     const { policy_ids, system_characteristics } = body;
 
@@ -158,8 +149,8 @@ export async function analyzePolicyConflicts(req: Request, res: Response) {
       return res.status(400).json({ error: "At least 2 policy IDs are required for conflict detection" });
     }
 
-    const { createClient } = await import('../../utils/supabase/server');
-    const supabase = await createClient();
+    const { supabaseAdmin } = await import('../../src/lib/supabase');
+    const supabase = supabaseAdmin;
 
     // Fetch policies with their requirements
     const { data: policies, error: policiesError } = await supabase
@@ -263,11 +254,7 @@ export async function analyzePolicyConflicts(req: Request, res: Response) {
  */
 export async function analyzePolicyGaps(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-
+    const userId = req.user!.sub;
     const body = req.body;
     const { system_id } = body;
 
@@ -276,8 +263,8 @@ export async function analyzePolicyGaps(req: Request, res: Response) {
       return res.status(400).json({ error: "Missing required field: system_id" });
     }
 
-    const { createClient } = await import('../../utils/supabase/server');
-    const supabase = await createClient();
+    const { supabaseAdmin } = await import('../../src/lib/supabase');
+    const supabase = supabaseAdmin;
 
     // Fetch AI system information
     const { data: systemInfo, error: systemError } = await supabase
@@ -314,10 +301,10 @@ export async function analyzePolicyGaps(req: Request, res: Response) {
 
     // Transform policy mappings
     const applicablePolicies = policyMappings?.map(mapping => ({
-      id: mapping.policies.id,
-      name: mapping.policies.name,
-      description: mapping.policies.description || '',
-      policy_type: mapping.policies.policy_type,
+      id: mapping.policies[0].id,
+      name: mapping.policies[0].name,
+      description: mapping.policies[0].description || '',
+      policy_type: mapping.policies[0].policy_type,
       current_compliance_status: mapping.compliance_status
     })) || [];
 

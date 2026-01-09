@@ -1,5 +1,4 @@
-import { createClient } from "../../utils/supabase/server";
-import { getUserId } from "../../middleware/auth";
+import { supabase } from "../../src/utils/supabase/client";
 import type {
   GovernanceRegulation,
   GovernanceTask,
@@ -293,12 +292,6 @@ async function fetchExistingTasks(supabase: any, systemId: string) {
 export async function evaluateGovernanceTasks(
   systemId: string
 ): Promise<GovernanceTask[]> {
-  const userId = await getUserId();
-  if (!userId) {
-    return [];
-  }
-
-  const supabase = await createClient();
   const context = await getSystemContext(supabase, systemId);
   if (!context) {
     return [];

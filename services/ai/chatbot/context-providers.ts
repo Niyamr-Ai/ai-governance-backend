@@ -32,7 +32,7 @@ import type {
   ActionContext,
   PageContext
 } from '../../../types/chatbot';
-import { createClient } from '../../../utils/supabase/server';
+import { supabaseAdmin } from '../../../src/lib/supabase';
 import { getRegulationContextString, type RegulationType } from '../rag-service';
 import { getPlatformContextString } from '../platform-rag-service';
 import { getUserSystemContextString } from '../user-system-rag-service';
@@ -234,7 +234,7 @@ export async function getSystemAnalysisContext(
   }
 
   try {
-    const supabase = await createClient();
+    const supabase = supabaseAdmin;
     const systemId = pageContext.systemId;
 
     // PRIMARY SOURCE: User System RAG (tenant-isolated)
@@ -359,7 +359,7 @@ export async function getActionContext(
   userId: string
 ): Promise<ActionContext> {
   try {
-    const supabase = await createClient();
+    const supabase = supabaseAdmin;
 
     let availableWorkflows: string[] = [];
     const pendingTasks: string[] = [];

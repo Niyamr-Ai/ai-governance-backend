@@ -5,8 +5,7 @@
  */
 
 import { Request, Response } from 'express';
-import { createClient } from '../../utils/supabase/server';
-import { getUserId } from '../../middleware/auth';
+import { supabaseAdmin } from '../../src/lib/supabase';
 
 /**
  * GET /api/documentation
@@ -14,12 +13,11 @@ import { getUserId } from '../../middleware/auth';
  */
 export async function getDocumentation(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
-    const supabase = await createClient();
+    const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
+    const supabase = supabaseAdmin;
 
     // Filter parameters
     const regulationType = req.query.regulation_type as string;

@@ -1,18 +1,19 @@
 import { Router } from 'express';
+import { authenticateToken } from '../middleware/auth';
 import { getRedTeaming, postRedTeaming, executeTargetedRedTeaming, generateTargetedRedTeaming } from '../controllers/red-teaming.controller';
 
 const router = Router();
 
 // GET /api/red-teaming
-router.get('/', getRedTeaming);
+router.get('/', authenticateToken, getRedTeaming);
 
 // POST /api/red-teaming
-router.post('/', postRedTeaming);
+router.post('/', authenticateToken, postRedTeaming);
 
 // POST /api/red-teaming/targeted
-router.post('/targeted', generateTargetedRedTeaming);
+router.post('/targeted', authenticateToken, generateTargetedRedTeaming);
 
 // POST /api/red-teaming/execute-targeted
-router.post('/execute-targeted', executeTargetedRedTeaming);
+router.post('/execute-targeted', authenticateToken, executeTargetedRedTeaming);
 
 export default router;

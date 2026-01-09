@@ -7,18 +7,13 @@
  */
 
 import { Request, Response } from 'express';
-import { getUserId } from '../../middleware/auth';
 
 /**
  * POST /api/regulatory-changes/action-plan - Generate compliance action plan
  */
 export async function generateActionPlan(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-
+    const userId = req.user!.sub;
     const body = req.body;
     const { impact_analysis, regulatory_change, organization_capacity } = body;
 
@@ -120,11 +115,7 @@ export async function generateActionPlan(req: Request, res: Response) {
  */
 export async function estimateEffort(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-
+    const userId = req.user!.sub;
     const body = req.body;
     const { required_changes, organization_capacity } = body;
 
@@ -249,11 +240,7 @@ export async function estimateEffort(req: Request, res: Response) {
  */
 export async function analyzeImpact(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-
+    const userId = req.user!.sub;
     const body = req.body;
     const { regulatory_change, system_ids } = body;
 
@@ -266,8 +253,8 @@ export async function analyzeImpact(req: Request, res: Response) {
       return res.status(400).json({ error: "At least one system ID is required for impact analysis" });
     }
 
-    const { createClient } = await import('../../utils/supabase/server');
-    const supabase = await createClient();
+    const { supabaseAdmin } = await import('../../src/lib/supabase');
+    const supabase = supabaseAdmin;
 
     // Fetch system information for all requested systems
     const systemAnalyses = [];

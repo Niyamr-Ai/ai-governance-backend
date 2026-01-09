@@ -5,8 +5,7 @@
  */
 
 import { Request, Response } from 'express';
-import { getUserId } from '../../middleware/auth';
-import { createClient } from '../../utils/supabase/server';
+import { supabaseAdmin } from '../../src/lib/supabase';
 import { generateShadowAIAssessment, suggestSystemLinks, prioritizeDiscoveredSystems } from '../../services/compliance/smart-shadow-ai-discovery';
 import type { DiscoveredAIAsset } from '../../types/discovery';
 
@@ -15,11 +14,11 @@ import type { DiscoveredAIAsset } from '../../types/discovery';
  */
 export async function createSmartAssessment(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
+    const userId = req.user?.sub;
     if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
+      return res.status(401).json({ error: "Unauthorized" });
     }
-
+    
     const body = req.body;
     const { asset_id, organization_context } = body;
 
@@ -28,7 +27,7 @@ export async function createSmartAssessment(req: Request, res: Response) {
       return res.status(400).json({ error: "Missing required field: asset_id" });
     }
 
-    const supabase = await createClient();
+    const supabase = supabaseAdmin;
 
     // Fetch the discovered asset
     const { data: asset, error: assetError } = await supabase
@@ -75,12 +74,11 @@ export async function createSmartAssessment(req: Request, res: Response) {
  */
 export async function getDiscovery(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
-    const supabase = await createClient();
+    const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
+    const supabase = supabaseAdmin;
 
     // Build query
     let query = supabase
@@ -143,11 +141,10 @@ export async function getDiscovery(req: Request, res: Response) {
  */
 export async function postDiscovery(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
+          const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
     const body = req.body;
 
     // Validate required fields
@@ -165,7 +162,7 @@ export async function postDiscovery(req: Request, res: Response) {
       });
     }
 
-    const supabase = await createClient();
+    const supabase = supabaseAdmin;
 
     // Prepare asset data
     const assetData = {
@@ -230,11 +227,10 @@ export async function postDiscovery(req: Request, res: Response) {
  */
 export async function getLinkSuggestions(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-
+        const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
     const body = req.body;
     const { asset_id, max_suggestions = 5 } = body;
 
@@ -243,7 +239,7 @@ export async function getLinkSuggestions(req: Request, res: Response) {
       return res.status(400).json({ error: "Missing required field: asset_id" });
     }
 
-    const supabase = await createClient();
+    const supabase = supabaseAdmin;
 
     // Fetch the discovered asset
     const { data: asset, error: assetError } = await supabase
@@ -291,14 +287,13 @@ export async function getLinkSuggestions(req: Request, res: Response) {
  */
 export async function markAsShadowAI(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-
+    const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
     const { id: assetId } = req.params;
     const body = req.body;
-    const supabase = await createClient();
+    const supabase = supabaseAdmin;
 
     // Check permissions (admin or creator)
     const { data: existingAsset, error: fetchError } = await supabase
@@ -375,14 +370,13 @@ export async function markAsShadowAI(req: Request, res: Response) {
  */
 export async function resolveDiscoveredAsset(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-
+      const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
     const { id: assetId } = req.params;
     const body = req.body;
-    const supabase = await createClient();
+    const supabase = supabaseAdmin;
 
     // Check permissions (admin or creator)
     const { data: existingAsset, error: fetchError } = await supabase
@@ -460,14 +454,13 @@ export async function resolveDiscoveredAsset(req: Request, res: Response) {
  */
 export async function createSystemFromAsset(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-
+      const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
     const { id: assetId } = req.params;
     const body = req.body;
-    const supabase = await createClient();
+    const supabase = supabaseAdmin;
 
     // Validate required fields
     if (!body.system_name) {
@@ -580,15 +573,14 @@ export async function createSystemFromAsset(req: Request, res: Response) {
  */
 export async function getPrioritization(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-
+      const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
     const body = req.body;
     const { asset_ids, shadow_status_filter } = body;
 
-    const supabase = await createClient();
+    const supabase = supabaseAdmin;
 
     let query = supabase
       .from("discovered_ai_assets")
@@ -661,14 +653,13 @@ export async function getPrioritization(req: Request, res: Response) {
  */
 export async function linkDiscoveredAsset(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-
+    const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
     const { id: assetId } = req.params;
     const body = req.body;
-    const supabase = await createClient();
+    const supabase = supabaseAdmin;
 
     // Validate required fields
     if (!body.linked_system_id) {

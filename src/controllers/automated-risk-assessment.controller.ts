@@ -6,8 +6,7 @@
  */
 
 import { Request, Response } from 'express';
-import { createClient } from '../../utils/supabase/server';
-import { getUserId } from '../../middleware/auth';
+import { supabaseAdmin } from '../../src/lib/supabase';
 import { calculateRiskScores } from '../../services/risk-assessment/automated-risk-scoring';
 import { OpenAI } from 'openai';
 import type {
@@ -28,7 +27,7 @@ function getOpenAIClient() {
  * Gather all system data needed for risk assessment
  */
 async function gatherSystemData(systemId: string) {
-  const supabase = await createClient();
+  const supabase = supabaseAdmin;
 
   // Fetch compliance assessments (EU, UK, MAS)
   const [euResult, ukResult, masResult] = await Promise.all([
@@ -339,13 +338,13 @@ Return ONLY a JSON object with these 4 string fields. Each field value must be f
  */
 export async function getAutomatedRiskAssessment(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+    const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
 
     const { id: systemId } = req.params;
-    const supabase = await createClient();
+    const supabase = supabaseAdmin;
 
     // Fetch most recent assessment
     const { data, error } = await supabase
@@ -379,11 +378,7 @@ export async function getAutomatedRiskAssessment(req: Request, res: Response) {
  */
 export async function createAutomatedRiskAssessment(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
+    const userId = req.user?.sub;
     const { id: systemId } = req.params;
     const body = req.body || {};
     const { trigger_type = "manual", weights } = body as CreateAutomatedRiskAssessmentInput;
@@ -520,7 +515,7 @@ export async function createAutomatedRiskAssessment(req: Request, res: Response)
     nextReviewDate.setMonth(nextReviewDate.getMonth() + reviewFrequencyMonths);
 
     // Save to database
-    const supabase = await createClient();
+    const supabase = supabaseAdmin;
     const { data: assessment, error: insertError } = await supabase
       .from("automated_risk_assessments")
       .insert([
@@ -575,11 +570,10 @@ export async function createAutomatedRiskAssessment(req: Request, res: Response)
  */
 export async function approveAutomatedRiskAssessment(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
+    const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ error: "Unauthorized" });
+}
     const { assessmentId } = req.params;
     const body = req.body;
     const {
@@ -598,7 +592,7 @@ export async function approveAutomatedRiskAssessment(req: Request, res: Response
       });
     }
 
-    const supabase = await createClient();
+    const supabase = supabaseAdmin;
 
     // Update assessment with approval status
     const updateData: any = {

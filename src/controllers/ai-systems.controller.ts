@@ -5,8 +5,7 @@
  */
 
 import { Request, Response } from 'express';
-import { createClient } from '../../utils/supabase/server';
-import { getUserId } from '../../middleware/auth';
+import { supabase } from "../utils/supabase/client";
 import { evaluateGovernanceTasks } from '../../services/governance/governance-tasks';
 import { suggestBlockerResolutions } from '../../services/governance/smart-lifecycle-transition';
 import { OpenAI } from 'openai';
@@ -21,12 +20,11 @@ import { generateTransitionPlan, assessTransitionReadiness } from '../../service
  */
 export async function listAISystems(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
+    const userId = req.user?.sub;
     if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
+      return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const supabase = await createClient();
 
     // Fetch systems from all compliance tables
     const [euSystems, ukSystems, masSystems] = await Promise.all([
@@ -82,10 +80,10 @@ export async function listAISystems(req: Request, res: Response) {
  */
 export async function getSystemTasks(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+    const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
 
     const { id: systemId } = req.params;
     const tasks = await evaluateGovernanceTasks(systemId);
@@ -106,10 +104,10 @@ export async function getSystemTasks(req: Request, res: Response) {
  */
 export async function postBlockerResolutions(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
+    const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
 
     const { id: systemId } = req.params;
     const { blockers } = req.body;
@@ -118,8 +116,6 @@ export async function postBlockerResolutions(req: Request, res: Response) {
     if (!blockers || !Array.isArray(blockers) || blockers.length === 0) {
       return res.status(400).json({ error: "Blockers array is required" });
     }
-
-    const supabase = await createClient();
 
     // Get system data from multiple sources
     const [
@@ -325,13 +321,12 @@ type RegulationType = 'EU AI Act' | 'UK AI Act' | 'MAS';
  */
 export async function getDocumentation(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+    const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
 
     const { id: systemId } = req.params;
-    const supabase = await createClient();
 
     // Fetch all documentation for this system
     const { data: docs, error } = await supabase
@@ -361,13 +356,13 @@ export async function getDocumentation(req: Request, res: Response) {
  */
 export async function getOverallRisk(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+    const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
 
     const { id: aiSystemId } = req.params;
-    const supabase = await createClient();
+
 
     // Fetch all risk assessments for this system
     const { data: assessments, error } = await supabase
@@ -402,13 +397,12 @@ export async function getOverallRisk(req: Request, res: Response) {
  */
 export async function getSystemPolicies(req: Request, res: Response) {
   try {
-    const supabase = await createClient();
+    
 
-    // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+    const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
 
     const { id: systemId } = req.params;
 
@@ -439,13 +433,13 @@ export async function getSystemPolicies(req: Request, res: Response) {
  */
 export async function postSystemPolicy(req: Request, res: Response) {
   try {
-    const supabase = await createClient();
 
-    // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+    const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
+
+
 
     const { id: systemId } = req.params;
     const body = req.body;
@@ -475,7 +469,7 @@ export async function postSystemPolicy(req: Request, res: Response) {
         ai_system_id: systemId,
         compliance_status: body.compliance_status || "Not assessed",
         notes: body.notes || null,
-        assessed_by: user.id,
+        assessed_by: userId,
         assessed_at: new Date().toISOString(),
       })
       .select()
@@ -499,13 +493,13 @@ export async function postSystemPolicy(req: Request, res: Response) {
  */
 export async function getSystemRiskAssessments(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+    const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
 
     const { id: aiSystemId } = req.params;
-    const supabase = await createClient();
+
 
     // Fetch all risk assessments for this system
     const { data: assessments, error } = await supabase
@@ -538,10 +532,10 @@ export async function getSystemRiskAssessments(req: Request, res: Response) {
  */
 export async function postSystemRiskAssessment(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+      const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
 
     const { id: aiSystemId } = req.params;
     const body = req.body;
@@ -569,8 +563,6 @@ export async function postSystemRiskAssessment(req: Request, res: Response) {
       });
     }
 
-    // Create Supabase client
-    const supabase = await createClient();
 
     // Governance Rule: High risk assessments require evidence
     if (body.risk_level === 'high' && (!body.evidence_links || body.evidence_links.length === 0)) {
@@ -641,10 +633,10 @@ export async function postSystemRiskAssessment(req: Request, res: Response) {
  */
 export async function postRiskMitigations(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
+    const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
 
     const { id: systemId } = req.params;
     const { risk_factors } = req.body;
@@ -654,7 +646,6 @@ export async function postRiskMitigations(req: Request, res: Response) {
       return res.status(400).json({ error: "Risk factors array is required" });
     }
 
-    const supabase = await createClient();
 
     // Get system information
     const [
@@ -758,15 +749,14 @@ export async function postRiskMitigations(req: Request, res: Response) {
  */
 export async function getRiskTrends(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
+      const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
 
     const { id: systemId } = req.params;
     const includeIndustryBenchmarks = req.query.include_benchmarks === 'true';
 
-    const supabase = await createClient();
 
     // Fetch historical risk assessments for this system
     const { data: historicalAssessments, error: historyError } = await supabase
@@ -928,15 +918,14 @@ export async function getRiskTrends(req: Request, res: Response) {
  */
 export async function postSmartRiskAssessment(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
+        const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
 
     const { id: systemId } = req.params;
     const { include_organization_history = false } = req.body;
 
-    const supabase = await createClient();
 
     // Gather comprehensive system data
     const [
@@ -1086,10 +1075,10 @@ export async function postSmartRiskAssessment(req: Request, res: Response) {
  */
 export async function postTransitionPlan(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
+    const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
 
     const { id: systemId } = req.params;
     const { from_stage, to_stage, readiness_assessment } = req.body;
@@ -1115,7 +1104,6 @@ export async function postTransitionPlan(req: Request, res: Response) {
       return res.status(400).json({ error: "From stage and to stage cannot be the same" });
     }
 
-    const supabase = await createClient();
 
     // Get system data from multiple sources
     const [
@@ -1269,10 +1257,10 @@ export async function postTransitionPlan(req: Request, res: Response) {
  */
 export async function postTransitionReadiness(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
+    const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
 
     const { id: systemId } = req.params;
     const { target_stage } = req.body;
@@ -1290,7 +1278,6 @@ export async function postTransitionReadiness(req: Request, res: Response) {
       });
     }
 
-    const supabase = await createClient();
 
     // Get system data from multiple sources
     const [
@@ -1438,10 +1425,10 @@ export async function postTransitionReadiness(req: Request, res: Response) {
  */
 export async function postDocumentation(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+    const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
 
     const { id: systemId } = req.params;
     const body = req.body;
@@ -1452,7 +1439,6 @@ export async function postDocumentation(req: Request, res: Response) {
       document_type = 'Compliance Summary';
     }
 
-    const supabase = await createClient();
 
     // Smart Default: Auto-detect regulation type if not provided
     if (!regulation_type) {
@@ -1618,13 +1604,11 @@ export async function postDocumentation(req: Request, res: Response) {
  */
 export async function getComplianceData(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
+    const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
     const { id: systemId } = req.params;
-    const supabase = await createClient();
 
     // Check all three compliance tables for this system ID
     const [euResult, masResult, ukResult] = await Promise.all([
@@ -2151,14 +2135,13 @@ Format as a chronological log with clear timestamps. Use markdown formatting wit
  */
 export async function updateSystemPolicyMapping(req: Request, res: Response) {
   try {
-    const { createClient } = await import("../../utils/supabase/server");
-    const supabase = await createClient();
 
-    // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+    const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
+
+
 
     const { mappingId } = req.params;
     const body = req.body;
@@ -2169,7 +2152,7 @@ export async function updateSystemPolicyMapping(req: Request, res: Response) {
       .update({
         compliance_status: body.compliance_status,
         notes: body.notes,
-        assessed_by: user.id,
+        assessed_by: userId,
         assessed_at: new Date().toISOString(),
       })
       .eq("id", mappingId)
@@ -2197,14 +2180,13 @@ export async function updateSystemPolicyMapping(req: Request, res: Response) {
  */
 export async function deleteSystemPolicyMapping(req: Request, res: Response) {
   try {
-    const { createClient } = await import("../../utils/supabase/server");
-    const supabase = await createClient();
 
-    // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+    const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
+
+
 
     const { mappingId } = req.params;
 

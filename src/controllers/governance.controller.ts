@@ -5,8 +5,7 @@
  */
 
 import { Request, Response } from 'express';
-import { createClient } from '../../utils/supabase/server';
-import { getUserId } from '../../middleware/auth';
+import { supabaseAdmin } from '../../src/lib/supabase';
 import { generateSmartGovernanceSuggestions, analyzeTaskCompletionImpact, getTaskContextualHelp, type TaskSuggestionContext } from '../../services/governance/smart-governance-suggestions';
 import { evaluateGovernanceTasks } from '../../services/governance/governance-tasks';
 import type { GovernanceRegulation, GovernanceTaskStatus } from '../../types/governance-task';
@@ -23,11 +22,7 @@ const ALLOWED_STATUSES: GovernanceTaskStatus[] = [
  */
 export async function getGovernanceSuggestions(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-
+    const userId = req.user!.sub;
     const body = req.body;
     const {
       systemId,
@@ -102,11 +97,7 @@ export async function getGovernanceSuggestions(req: Request, res: Response) {
  */
 export async function analyzeCompletionImpact(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-
+    const userId = req.user!.sub;
     const body = req.body;
     const {
       completedTaskTitle,
@@ -181,16 +172,12 @@ export async function analyzeCompletionImpact(req: Request, res: Response) {
  */
 export async function updateGovernanceTask(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
+    const userId = req.user!.sub;
     const { taskId } = req.params;
     const body = req.body || {};
     const { status, evidence_link } = body;
 
-    const supabase = await createClient();
+    const supabase = supabaseAdmin;
 
     const { data: existingTask, error: fetchError } = await supabase
       .from("governance_tasks")
@@ -269,11 +256,7 @@ export async function updateGovernanceTask(req: Request, res: Response) {
  */
 export async function getContextualHelp(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-
+    const userId = req.user!.sub;
     const body = req.body;
     const {
       taskTitle,

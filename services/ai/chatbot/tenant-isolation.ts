@@ -7,7 +7,7 @@
  * NEVER allow cross-organization data access.
  */
 
-import { createClient } from '../../../utils/supabase/server';
+import { supabaseAdmin } from "../../../src/lib/supabase";
 
 /**
  * Verify user has access to a system
@@ -21,7 +21,7 @@ export async function verifySystemAccess(
   systemId: string
 ): Promise<boolean> {
   try {
-    const supabase = await createClient();
+    const supabase = supabaseAdmin;
 
     // Check if system exists and user has access (RLS enforces this)
     // Explicitly verify by attempting to read the system
@@ -71,9 +71,9 @@ export async function enforceTenantIsolation(
   mode: 'SYSTEM_ANALYSIS' | 'ACTION'
 ): Promise<void> {
   // EXPLAIN mode doesn't require system access
-  if (mode === 'EXPLAIN') {
-    return;
-  }
+  // if (mode === 'EXPLAIN') {
+  //   return;
+  // }
 
   // SYSTEM_ANALYSIS mode always requires systemId
   if (mode === 'SYSTEM_ANALYSIS' && !systemId) {

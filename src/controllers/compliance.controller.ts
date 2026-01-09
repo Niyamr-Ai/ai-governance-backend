@@ -1,8 +1,8 @@
 // EU AI Act Compliance API Controller
 import { Request, Response } from "express";
 import { OpenAI } from "openai";
-import { createClient } from "@supabase/supabase-js";
-import { getUserId } from "../../middleware/auth";
+import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '../lib/supabase';
 import { getRegulationContextString } from "../../services/ai/rag-service";
 
 function getSupabaseClient() {
@@ -35,12 +35,10 @@ function getOpenAIClient() {
  */
 export async function getCompliance(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
+    const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
     const supabase = getSupabaseClient();
 
     // Fetch all basic compliance checks for this user
@@ -95,12 +93,11 @@ export async function getCompliance(req: Request, res: Response) {
  */
 export async function postCompliance(req: Request, res: Response) {
   try {
-    const user_id = await getUserId(req);
-    const userId = user_id ? user_id : null;
-
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+    const user_id = req.user?.sub;
+if (!user_id) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
+    const userId = user_id;
 
     const body = req.body;
     const { system_name, ...answers } = body;
@@ -256,6 +253,7 @@ Be precise and follow EU AI Act guidelines exactly.`;
  */
 export async function getComplianceById(req: Request, res: Response) {
   try {
+    console.log("🔍 [BACKEND] getComplianceById called with params:", req.params, "query:", req.query);
     const { id } = req.params;
     const supabase = getSupabaseClient();
 
@@ -284,9 +282,19 @@ export async function getComplianceById(req: Request, res: Response) {
 export async function getDetailedCompliance(req: Request, res: Response) {
   try {
     const { id } = req.query;
+    console.log("🔍 [BACKEND] getDetailedCompliance called with query:", req.query);
+    console.log("🔍 [BACKEND] id parameter:", id, "type:", typeof id);
 
     if (!id || typeof id !== 'string') {
+      console.log("❌ [BACKEND] Invalid id parameter:", { id, type: typeof id });
       return res.status(400).json({ message: "Missing required parameter: id" });
+    }
+
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(id)) {
+      console.log("❌ [BACKEND] Invalid UUID format:", id);
+      return res.status(400).json({ message: "Invalid ID format" });
     }
 
     const supabase = getSupabaseClient();
@@ -319,6 +327,11 @@ export async function getDetailedCompliance(req: Request, res: Response) {
  */
 export async function postDetailedCompliance(req: Request, res: Response) {
   try {
+    const userId = req.user?.sub;
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
     const body = req.body;
     const basicId = body.compliance_id;
 
@@ -342,17 +355,45 @@ export async function postDetailedCompliance(req: Request, res: Response) {
       5
     );
 
-    // Build prompt (simplified version)
+    // Build prompt with specific JSON structure requirements
     const prompt = `
 You are an expert compliance assessor for the EU Artificial Intelligence Act.
 
-Context:
-${contextChunks}
+Based on the following questions and answers, provide a detailed compliance assessment.
 
 Questions with answers:
 ${JSON.stringify(answers)}
 
-Please provide detailed compliance assessment in JSON format with the required fields.
+Context from EU AI Act:
+${contextChunks}
+
+IMPORTANT: Respond with ONLY a valid JSON object in this exact format (no markdown, no explanations):
+
+{
+  "documented_risk_management_system": boolean,
+  "risk_identification_and_analysis": boolean,
+  "risk_evaluation_process": "string description",
+  "specific_risk_mitigation_measures": "string description",
+  "data_relevance_and_quality": boolean,
+  "data_governance_measures": "string description",
+  "data_contextual_relevance": "string description",
+  "technical_documentation_available": boolean,
+  "technical_documentation_summary": "string description",
+  "automatic_event_logging": boolean,
+  "logged_events_description": "string description",
+  "operation_transparency": "string description",
+  "instructions_for_use_available": boolean,
+  "human_oversight_measures": "string description",
+  "accuracy_robustness_cybersecurity": boolean,
+  "resilience_measures": "string description",
+  "security_controls": "string description",
+  "conformity_assessment_completed": boolean,
+  "quality_management_system": boolean,
+  "eu_declaration_and_ce_marking": boolean,
+  "fundamental_rights_impact_assessment": "string description"
+}
+
+Each field should be evaluated based on the answers provided. Use the context from the EU AI Act to inform your assessment.
 `.trim();
 
     // Call OpenAI
@@ -367,29 +408,142 @@ Please provide detailed compliance assessment in JSON format with the required f
       return res.status(500).json({ message: "Invalid AI response" });
     }
 
-    // Parse JSON
-    let checkResult;
+    // Parse JSON - handle various AI response formats
+    let checkResult: any;
+    let jsonString = "";
     try {
-      const jsonString = content
-        .replace(/^```json\s*/g, "")
-        .replace(/```$/g, "")
+      jsonString = content.trim();
+
+      // Remove markdown code blocks and any explanatory text
+      jsonString = jsonString.replace(/^```(?:json)?\s*/gm, "").replace(/```\s*$/gm, "");
+
+      // If the response contains explanations before/after JSON, extract just the JSON
+      const jsonMatch = jsonString.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        jsonString = jsonMatch[0];
+      }
+
+      // Clean up any remaining text
+      jsonString = jsonString
+        .replace(/^[\s\S]*?(\{)/m, "$1") // Remove everything before first {
+        .replace(/\}[\s\S]*$/m, "}") // Remove everything after last }
         .trim();
+
+      console.log("Final JSON string to parse:", jsonString.substring(0, 200) + "...");
+
       checkResult = JSON.parse(jsonString);
+
+      // Validate that we have the expected structure
+      const requiredFields = [
+        'documented_risk_management_system', 'risk_identification_and_analysis',
+        'risk_evaluation_process', 'specific_risk_mitigation_measures'
+      ];
+
+      const missingFields = requiredFields.filter(field => !(field in checkResult));
+      if (missingFields.length > 0) {
+        console.error("Missing required fields:", missingFields);
+        return res.status(500).json({ message: "AI response missing required fields" });
+      }
+
     } catch (err) {
       console.error("Error parsing AI response:", content);
+      console.error("Parsed attempt:", jsonString);
       return res.status(500).json({ message: "AI returned invalid JSON" });
     }
 
     // Insert into ai_system_compliance table directly
     checkResult.compliance_id = basicId;
+
+    // Sanitize and validate data before insertion
+    // Ensure string fields are not too long and clean up any problematic characters
+    Object.keys(checkResult).forEach(key => {
+      if (typeof checkResult[key] === 'string') {
+        // Truncate very long strings
+        if (checkResult[key].length > 2000) {
+          checkResult[key] = checkResult[key].substring(0, 2000) + '...';
+        }
+        // Remove any null bytes or problematic characters
+        checkResult[key] = checkResult[key].replace(/\0/g, '').replace(/[\x00-\x1F\x7F-\x9F]/g, '');
+      }
+    });
+
+    const dataSize = JSON.stringify(checkResult).length;
+    console.log(`Inserting sanitized data (${dataSize} chars):`, JSON.stringify(checkResult, null, 2));
+
+    if (dataSize > 50000) { // Arbitrary limit to prevent oversized inserts
+      console.error("Data too large for insertion:", dataSize);
+      return res.status(400).json({ message: "Assessment data too large" });
+    }
+
+    // Test connection with a simple query first
+    try {
+      const { data: testData, error: testError } = await supabase
+        .from("ai_system_compliance")
+        .select("compliance_id")
+        .limit(1);
+
+      if (testError) {
+        // If table doesn't exist, try to create it
+        if (testError.code === '42P01') { // Table doesn't exist
+          console.log("ai_system_compliance table doesn't exist, creating it...");
+          const createTableSQL = `
+            CREATE TABLE IF NOT EXISTS ai_system_compliance (
+              id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+              compliance_id UUID NOT NULL,
+              documented_risk_management_system BOOLEAN NOT NULL,
+              risk_identification_and_analysis BOOLEAN NOT NULL,
+              risk_evaluation_process TEXT,
+              specific_risk_mitigation_measures TEXT,
+              data_relevance_and_quality BOOLEAN NOT NULL,
+              data_governance_measures TEXT,
+              data_contextual_relevance TEXT,
+              technical_documentation_available BOOLEAN NOT NULL,
+              technical_documentation_summary TEXT,
+              automatic_event_logging BOOLEAN NOT NULL,
+              logged_events_description TEXT,
+              operation_transparency TEXT,
+              instructions_for_use_available BOOLEAN NOT NULL,
+              human_oversight_measures TEXT,
+              accuracy_robustness_cybersecurity BOOLEAN NOT NULL,
+              resilience_measures TEXT,
+              security_controls TEXT,
+              conformity_assessment_completed BOOLEAN NOT NULL,
+              quality_management_system BOOLEAN NOT NULL,
+              eu_declaration_and_ce_marking BOOLEAN NOT NULL,
+              fundamental_rights_impact_assessment TEXT,
+              created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+              updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+              UNIQUE(compliance_id)
+            );
+          `;
+
+          const { error: createError } = await supabase.rpc('exec_sql', { sql: createTableSQL });
+          if (createError) {
+            console.error("Failed to create ai_system_compliance table:", createError);
+            return res.status(500).json({ message: "Database setup failed" });
+          }
+          console.log("ai_system_compliance table created successfully");
+        } else {
+          console.error("Supabase connection test failed:", testError);
+          return res.status(500).json({ message: "Database connection issue" });
+        }
+      } else {
+        console.log("Supabase connection test passed");
+      }
+    } catch (connError) {
+      console.error("Supabase connection error:", connError);
+      return res.status(500).json({ message: "Database connection failed" });
+    }
+
     const { data: resultData, error: resultError } = await supabase
       .from("ai_system_compliance")
-      .insert([checkResult])
+      .upsert([checkResult], { onConflict: 'compliance_id' })
       .select()
       .single();
 
     if (resultError) {
       console.error("Supabase insert error:", resultError);
+      console.error("Data that failed to insert:", checkResult);
       return res.status(500).json({ message: "Failed to store result" });
     }
 
@@ -400,7 +554,7 @@ Please provide detailed compliance assessment in JSON format with the required f
       try {
         const { autoGenerateDocumentationIfNeeded } = await import("../../services/documentation/documentation-auto-generate");
         console.log(`[Auto-Doc] Starting auto-generation for EU AI Act system ${basicId}`);
-        await autoGenerateDocumentationIfNeeded(basicId, ['EU AI Act']);
+        await autoGenerateDocumentationIfNeeded(basicId, ['EU AI Act'], userId);
         console.log(`[Auto-Doc] Completed auto-generation for system ${basicId}`);
       } catch (err: any) {
         console.error(`[Auto-Doc] Failed to auto-generate docs for system ${basicId}:`, err.message || err);

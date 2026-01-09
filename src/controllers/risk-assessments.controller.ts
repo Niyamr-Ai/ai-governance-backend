@@ -5,8 +5,7 @@
  */
 
 import { Request, Response } from 'express';
-import { createClient } from '../../utils/supabase/server';
-import { getUserId } from '../../middleware/auth';
+import { supabaseAdmin } from '../../src/lib/supabase';
 import type { ReviewAssessmentInput, RiskAssessment, UpdateRiskAssessmentInput } from '../../types/risk-assessment';
 import { evaluateGovernanceTasks } from '../../services/governance/governance-tasks';
 import { canEditRiskAssessment, type LifecycleStage } from '../../services/governance/lifecycle-governance-rules';
@@ -18,13 +17,9 @@ import { canEditRiskAssessment, type LifecycleStage } from '../../services/gover
  */
 export async function submitRiskAssessment(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
+    const userId = req.user!.sub;
     const { id: assessmentId } = req.params;
-    const supabase = await createClient();
+    const supabase = supabaseAdmin;
 
     // Fetch the assessment
     const { data: assessment, error: fetchError } = await supabase
@@ -98,14 +93,10 @@ export async function submitRiskAssessment(req: Request, res: Response) {
  */
 export async function approveRiskAssessment(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
+    const userId = req.user!.sub;
     const { id: assessmentId } = req.params;
     const body: ReviewAssessmentInput = req.body || {};
-    const supabase = await createClient();
+    const supabase = supabaseAdmin;
 
     // TODO: Later restrict to admins/compliance only
     // For now, any authenticated user can approve
@@ -207,14 +198,10 @@ export async function approveRiskAssessment(req: Request, res: Response) {
  */
 export async function rejectRiskAssessment(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
+    const userId = req.user!.sub;
     const { id: assessmentId } = req.params;
     const body: ReviewAssessmentInput = req.body || {};
-    const supabase = await createClient();
+    const supabase = supabaseAdmin;
 
     // TODO: Later restrict to admins/compliance only
     // For now, any authenticated user can reject
@@ -295,14 +282,10 @@ export async function rejectRiskAssessment(req: Request, res: Response) {
  */
 export async function updateMitigationStatus(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
+    const userId = req.user!.sub;
     const { id: assessmentId } = req.params;
     const body = req.body;
-    const supabase = await createClient();
+    const supabase = supabaseAdmin;
 
     // Validate mitigation_status
     if (!body.mitigation_status) {
@@ -379,13 +362,9 @@ export async function updateMitigationStatus(req: Request, res: Response) {
  */
 export async function getRiskAssessmentById(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
+    const userId = req.user!.sub;
     const { id: assessmentId } = req.params;
-    const supabase = await createClient();
+    const supabase = supabaseAdmin;
 
     const { data: assessment, error } = await supabase
       .from("risk_assessments")
@@ -419,14 +398,10 @@ export async function getRiskAssessmentById(req: Request, res: Response) {
  */
 export async function updateRiskAssessment(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
+      const userId = req.user!.sub;
     const { id: assessmentId } = req.params;
     const body: UpdateRiskAssessmentInput = req.body;
-    const supabase = await createClient();
+    const supabase = supabaseAdmin;
 
     // Check if assessment exists and user has permission
     const { data: existingAssessment, error: fetchError } = await supabase
@@ -555,13 +530,9 @@ export async function updateRiskAssessment(req: Request, res: Response) {
  */
 export async function deleteRiskAssessment(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
+    const userId = req.user!.sub;
     const { id: assessmentId } = req.params;
-    const supabase = await createClient();
+    const supabase = supabaseAdmin;
 
     // Check admin role
     const { data: user } = await supabase.auth.getUser();

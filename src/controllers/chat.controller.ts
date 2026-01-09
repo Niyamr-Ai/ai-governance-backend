@@ -12,7 +12,6 @@
  */
 
 import { Request, Response } from 'express';
-import { getUserId } from '../../middleware/auth';
 import { classifyIntent } from '../../services/ai/chatbot/intent-classifier';
 import {
   getExplainContext,
@@ -80,45 +79,9 @@ function extractSuggestedActions(
   mode: ChatbotMode,
   secondaryIntents?: ChatbotMode[]
 ): string[] {
-  const actions: string[] = [];
-
-  // For ACTION mode, look for numbered steps or bullet points
-  if (mode === 'ACTION') {
-    const stepMatches = response.match(/(?:^|\n)\d+\.\s+(.+?)(?:\n|$)/g);
-    if (stepMatches) {
-      stepMatches.forEach(match => {
-        const action = match.replace(/^\d+\.\s+/, '').trim();
-        if (action) actions.push(action);
-      });
-    }
-
-    // Also check for bullet points
-    const bulletMatches = response.match(/(?:^|\n)[-•]\s+(.+?)(?:\n|$)/g);
-    if (bulletMatches && actions.length === 0) {
-      bulletMatches.forEach(match => {
-        const action = match.replace(/^[-•]\s+/, '').trim();
-        if (action) actions.push(action);
-      });
-    }
-  }
-
-  // Convert secondary intents to suggested follow-up actions
-  if (secondaryIntents && secondaryIntents.length > 0) {
-    const modeLabels: Record<ChatbotMode, string> = {
-      EXPLAIN: 'Ask for explanation',
-      SYSTEM_ANALYSIS: 'Analyze your system',
-      ACTION: 'Get next steps'
-    };
-
-    secondaryIntents.forEach(intent => {
-      const suggestion = modeLabels[intent];
-      if (suggestion && !actions.includes(suggestion)) {
-        actions.push(suggestion);
-      }
-    });
-  }
-
-  return actions.slice(0, 5); // Limit to 5 actions
+  // Disable suggested actions to prevent UI clutter
+  // Users can ask follow-up questions naturally instead
+  return [];
 }
 
 /**
@@ -127,11 +90,10 @@ function extractSuggestedActions(
 export async function chatHandler(req: Request, res: Response) {
   try {
     // Check authentication
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
+    const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ message: "Unauthorized" });
+}
     // Parse request body
     const body: ChatRequest = req.body;
     const { message, pageContext, conversationHistory, persona = 'internal' } = body;

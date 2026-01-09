@@ -9,7 +9,11 @@ export type Environment = 'dev' | 'test' | 'prod' | 'unknown';
 export type ShadowStatus = 'potential' | 'confirmed' | 'resolved';
 export type DiscoveryEventType = 'detected' | 'linked' | 'marked_shadow' | 'resolved';
 
-export interface DiscoveredAIAsset {
+
+/**
+ * Base type used by frontend & services (no DB timestamps)
+ */
+export interface BaseDiscoveredAIAsset {
   id: string;
   source_type: DiscoverySourceType;
   detected_name: string;
@@ -20,10 +24,13 @@ export interface DiscoveredAIAsset {
   environment?: Environment | null;
   linked_system_id?: string | null;
   shadow_status: ShadowStatus;
-  discovered_at: string;
-  last_seen_at: string;
   created_by?: string | null;
   metadata?: Record<string, any> | null;
+}
+
+export interface DiscoveredAIAsset extends BaseDiscoveredAIAsset {
+  discovered_at: string;
+  last_seen_at: string;
   created_at: string;
   updated_at: string;
 }

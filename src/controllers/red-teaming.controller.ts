@@ -6,8 +6,7 @@
  */
 
 import { Request, Response } from 'express';
-import { createClient } from '../../utils/supabase/server';
-import { getUserId } from '../../middleware/auth';
+import { supabaseAdmin } from '../../src/lib/supabase';
 import { getAllAttacks } from '../../services/ai/red-teaming/red-teaming-attacks';
 import { evaluateResponse } from '../../services/ai/red-teaming/red-teaming-evaluator';
 import { OpenAI } from 'openai';
@@ -25,12 +24,8 @@ function getOpenAIClient() {
  */
 export async function getRedTeaming(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
-    const supabase = await createClient();
+    const userId = req.user!.sub;
+    const supabase = supabaseAdmin;
     const { attack_type, test_status, ai_system_id } = req.query;
 
     // Build query
@@ -112,11 +107,7 @@ export async function getRedTeaming(req: Request, res: Response) {
  */
 export async function postRedTeaming(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
+    const userId = req.user!.sub;
     const body = req.body;
     const { ai_system_id, attack_types, test_all } = body;
 
@@ -148,7 +139,7 @@ export async function postRedTeaming(req: Request, res: Response) {
       return res.status(400).json({ error: "No attacks to run" });
     }
 
-    const supabase = await createClient();
+    const supabase = supabaseAdmin;
     const openai = getOpenAIClient();
     const results = [];
 
@@ -228,11 +219,7 @@ export async function postRedTeaming(req: Request, res: Response) {
  */
 export async function executeTargetedRedTeaming(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
+    const userId = req.user!.sub;
     const body = req.body;
     const { ai_system_id, targeted_attacks } = body;
 
@@ -247,7 +234,7 @@ export async function executeTargetedRedTeaming(req: Request, res: Response) {
 
     console.log(`[Execute Targeted Tests] Running ${targeted_attacks.length} tests for system ${ai_system_id}`);
 
-    const supabase = await createClient();
+    const supabase = supabaseAdmin;
     const openai = getOpenAIClient();
     const results = [];
 
@@ -375,11 +362,7 @@ export async function executeTargetedRedTeaming(req: Request, res: Response) {
  */
 export async function generateTargetedRedTeaming(req: Request, res: Response) {
   try {
-    const userId = await getUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
+    const userId = req.user!.sub;
     const body = req.body;
     const { ai_system_id, attack_types, test_count = 5 } = body;
 

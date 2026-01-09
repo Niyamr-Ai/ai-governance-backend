@@ -1,12 +1,12 @@
 import express from 'express';
 import cors from 'cors';
-import { errorHandler } from '../utils/error';
+import { logger } from "../middleware/index";
+import { errorHandler } from './utils/error';
 
 // Import routes
 import aiSystemsRoutes from './routes/ai-systems.routes';
 import automatedRiskAssessmentRoutes from './routes/automated-risk-assessment.routes';
 import lifecycleRoutes from './routes/lifecycle.routes';
-import authRoutes from './routes/auth.routes';
 import chatRoutes from './routes/chat.routes';
 import complianceRoutes from './routes/compliance.routes';
 import cronRoutes from './routes/cron.routes';
@@ -26,6 +26,16 @@ import userRoutes from './routes/user.routes';
 
 const app = express();
 
+console.log("🔥🔥🔥 BACKEND APP STARTING 🔥🔥🔥");
+
+app.use(logger);
+
+// Add request logging middleware
+app.use((req, res, next) => {
+  console.log(`📨 [BACKEND] ${req.method} ${req.url} - Request received`);
+  next();
+}); 
+
 // Middleware
 app.use(cors({
   origin: true, // Allow all origins in development
@@ -39,7 +49,6 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/ai-systems', aiSystemsRoutes);
 app.use('/api/ai-systems', automatedRiskAssessmentRoutes);
 app.use('/api/ai-systems', lifecycleRoutes);
-app.use('/api/auth', authRoutes);
 app.use('/api', chatRoutes);
 app.use('/api/compliance', complianceRoutes);
 app.use('/api', cronRoutes);
@@ -50,12 +59,13 @@ app.use('/api/governance-tasks', governanceTasksRoutes);
 app.use('/api/mas-compliance', masComplianceRoutes);
 app.use('/api/policies', policiesRoutes);
 app.use('/api', policyComplianceRoutes);
-app.use('/api', redTeamingRoutes);
+app.use('/api/red-teaming', redTeamingRoutes);
 app.use('/api', regulatoryChangesRoutes);
 app.use('/api/risk-assessment', riskAssessmentRoutes);
 app.use('/api/risk-assessments', riskAssessmentsRoutes);
 app.use('/api/uk-compliance', ukComplianceRoutes);
 app.use('/api/user', userRoutes);
+// console.log("🔍 [BACKEND] User routes registered at /api/user");
 
 // Health check
 app.get('/health', (req, res) => {

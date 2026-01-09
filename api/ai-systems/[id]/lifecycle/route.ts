@@ -1,31 +1,35 @@
 /**
- * Lifecycle Governance API Controller
- *
+ * Lifecycle Governance API
+ * 
  * GET /api/ai-systems/[id]/lifecycle - Get lifecycle stage and history
  * PUT /api/ai-systems/[id]/lifecycle - Update lifecycle stage
  */
 
-import { Request, Response } from 'express';
-import { supabaseAdmin } from '../../src/lib/supabase';
+import { Request, Response } from "express";
+import { supabaseAdmin } from "@/lib/supabase";
 import {
   validateLifecycleTransition,
   type SystemComplianceData,
   type RiskAssessmentSummary,
-} from '../../services/governance/lifecycle-governance-rules';
+} from "../../../../services/governance/lifecycle-governance-rules";
 import {
   evaluateGovernanceTasks,
   getBlockingTasks,
-} from '../../services/governance/governance-tasks';
+} from "../../../../services/governance/governance-tasks";
 
 const LIFECYCLE_STAGES = ['Draft', 'Development', 'Testing', 'Deployed', 'Monitoring', 'Retired'] as const;
 type LifecycleStage = typeof LIFECYCLE_STAGES[number];
 
 /**
- * GET /api/ai-systems/[id]/lifecycle - Retrieve lifecycle stage and history for an AI system
+ * GET - Retrieve lifecycle stage and history for an AI system
  */
 export async function getLifecycle(req: Request, res: Response) {
   try {
-    const userId = req.user!.sub;
+    const userId = req.user?.sub;
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
     const { id: systemId } = req.params;
     const supabase = supabaseAdmin;
 
@@ -77,11 +81,15 @@ export async function getLifecycle(req: Request, res: Response) {
 }
 
 /**
- * PUT /api/ai-systems/[id]/lifecycle - Update lifecycle stage for an AI system
+ * PUT - Update lifecycle stage for an AI system
  */
 export async function updateLifecycle(req: Request, res: Response) {
   try {
-    const userId = req.user!.sub;
+    const userId = req.user?.sub;
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
     const { id: systemId } = req.params;
     const body = req.body;
     const supabase = supabaseAdmin;
@@ -185,8 +193,8 @@ export async function updateLifecycle(req: Request, res: Response) {
     // Auto-trigger automated risk assessment if major change detected
     void (async () => {
       try {
-        const { autoTriggerRiskAssessmentIfMajorChange } = await import("../../services/governance/major-change-detection");
-        await (autoTriggerRiskAssessmentIfMajorChange as any)(
+        const { autoTriggerRiskAssessmentIfMajorChange } = await import("../../../../services/governance/major-change-detection");
+        await autoTriggerRiskAssessmentIfMajorChange(
           systemId,
           { lifecycle_stage: previousStage, updated_at: euSystem.updated_at },
           { lifecycle_stage: newStage }

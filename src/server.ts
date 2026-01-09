@@ -1,8 +1,11 @@
-import app from './app';
-import { config } from 'dotenv';
+import 'dotenv/config'; // 👈 MUST be first
 
-// Load environment variables
-config();
+import app from './app';
+
+console.log('ENV CHECK', {
+  SUPABASE_URL: process.env.SUPABASE_URL,
+  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY?.slice(0, 10),
+});
 
 const PORT = process.env.PORT || 3001;
 

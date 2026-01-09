@@ -4,7 +4,7 @@
  */
 
 import { Request, Response } from 'express';
-import { createClient } from '../../utils/supabase/server';
+import { supabaseAdmin } from '../../src/lib/supabase';
 import type { Policy, CreateInternalPolicyInput } from '../../types/policy';
 
 /**
@@ -12,81 +12,69 @@ import type { Policy, CreateInternalPolicyInput } from '../../types/policy';
  */
 export async function getPolicies(req: Request, res: Response) {
   try {
-    const supabase = await createClient();
-
-    // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
+    const userId = req.user?.sub;
+    if (!userId) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const { data: policies, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("policies")
       .select("*")
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("Error fetching policies:", error);
       return res.status(500).json({ error: "Failed to fetch policies" });
     }
 
-    return res.json(policies || []);
+    return res.json(data ?? []);
   } catch (err: any) {
-    console.error("Error in GET /api/policies:", err);
-    return res.status(500).json({ error: err.message || "Internal server error" });
+    return res.status(500).json({ error: err.message });
   }
 }
+
 
 /**
  * POST /api/policies - Create a new internal policy
  */
 export async function createPolicy(req: Request, res: Response) {
   try {
-    const supabase = await createClient();
-
-    // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
+    const userId = req.user?.sub;
+    if (!userId) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
     const body: CreateInternalPolicyInput = req.body;
-
-    // Validate required fields
     if (!body.name) {
       return res.status(400).json({ error: "Policy name is required" });
     }
 
-    // Create policy (only internal policies can be created via API)
-    const { data: policy, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("policies")
       .insert({
         name: body.name,
         policy_type: "Internal",
-        description: body.description || null,
-        applies_to: body.applies_to || "All AI",
-        enforcement_level: body.enforcement_level || "Mandatory",
-        owner: body.owner || null,
-        effective_date: body.effective_date || null,
-        version: body.version || "1.0",
-        document_url: body.document_url || null,
+        description: body.description ?? null,
+        applies_to: body.applies_to ?? "All AI",
+        enforcement_level: body.enforcement_level ?? "Mandatory",
+        owner: body.owner ?? null,
+        version: body.version ?? "1.0",
+        document_url: body.document_url ?? null,
         status: "Active",
-        created_by: user.id,
+        created_by: userId,
       })
       .select()
       .single();
 
     if (error) {
-      console.error("Error creating policy:", error);
       return res.status(500).json({ error: "Failed to create policy" });
     }
 
-    return res.status(201).json(policy);
+    return res.status(201).json(data);
   } catch (err: any) {
-    console.error("Error in POST /api/policies:", err);
-    return res.status(500).json({ error: err.message || "Internal server error" });
+    return res.status(500).json({ error: err.message });
   }
 }
+
 
 /**
  * GET /api/policies/[id] - Get a specific policy with requirements
@@ -94,7 +82,7 @@ export async function createPolicy(req: Request, res: Response) {
 export async function getPolicyById(req: Request, res: Response) {
   try {
     const { id } = req.params;
-    const supabase = await createClient();
+    const supabase = supabaseAdmin;
 
     const { data, error } = await supabase
       .from("policies")
@@ -138,134 +126,102 @@ export async function getPolicyById(req: Request, res: Response) {
  */
 export async function updatePolicy(req: Request, res: Response) {
   try {
-    const { id } = req.params;
-    const supabase = await createClient();
-
-    // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
+    const userId = req.user?.sub;
+    if (!userId) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const body = req.body;
+    const { id } = req.params;
 
-    const { data: existingPolicy } = await supabase
+    const { data: policy } = await supabaseAdmin
       .from("policies")
       .select("created_by, policy_type")
       .eq("id", id)
       .maybeSingle();
 
-    if (!existingPolicy) {
+    if (!policy) {
       return res.status(404).json({ error: "Policy not found" });
     }
 
-    if (existingPolicy.policy_type === "External") {
+    if (policy.policy_type === "External") {
       return res.status(403).json({ error: "External policies cannot be updated" });
     }
 
     const isAdmin =
-      user.user_metadata?.role === "admin" ||
-      user.user_metadata?.role === "Admin";
+      req.user?.role === "admin" ||
+      req.user?.role === "Admin";
 
-    if (existingPolicy.created_by !== user.id && !isAdmin) {
-      return res.status(403).json({ error: "Unauthorized to update this policy" });
+    if (policy.created_by !== userId && !isAdmin) {
+      return res.status(403).json({ error: "Forbidden" });
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("policies")
-      .update({
-        name: body.name,
-        description: body.description,
-        summary: body.summary,
-        applies_to: body.applies_to,
-        enforcement_level: body.enforcement_level,
-        owner: body.owner,
-        effective_date: body.effective_date,
-        version: body.version,
-        status: body.status,
-        document_url: body.document_url,
-      })
+      .update(req.body)
       .eq("id", id)
       .select()
-      .maybeSingle();
+      .single();
 
     if (error) {
-      console.error("Policy update error:", error);
-      return res.status(500).json({ error: "Failed to update policy" });
+      return res.status(500).json({ error: "Update failed" });
     }
 
     return res.json(data);
   } catch (err: any) {
-    console.error("Error in PUT /api/policies/[id]:", err);
-    return res.status(500).json({ error: err.message || "Internal server error" });
+    return res.status(500).json({ error: err.message });
   }
 }
+
 
 /**
  * DELETE /api/policies/[id] - Delete a specific policy
  */
 export async function deletePolicy(req: Request, res: Response) {
   try {
-    const { id } = req.params;
-    const supabase = await createClient();
-
-    // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
+    const userId = req.user?.sub;
+    if (!userId) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
     const isAdmin =
-      user.user_metadata?.role === "admin" ||
-      user.user_metadata?.role === "Admin";
+      req.user?.role === "admin" ||
+      req.user?.role === "Admin";
 
     if (!isAdmin) {
-      return res.status(403).json({ error: "Only admins can delete policies" });
+      return res.status(403).json({ error: "Admins only" });
     }
 
-    const { data: existingPolicy } = await supabase
-      .from("policies")
-      .select("policy_type")
-      .eq("id", id)
-      .maybeSingle();
+    const { id } = req.params;
 
-    if (!existingPolicy) {
-      return res.status(404).json({ error: "Policy not found" });
-    }
-
-    if (existingPolicy.policy_type === "External") {
-      return res.status(403).json({ error: "External policies cannot be deleted" });
-    }
-
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from("policies")
       .delete()
       .eq("id", id);
 
     if (error) {
-      console.error("Policy delete error:", error);
-      return res.status(500).json({ error: "Failed to delete policy" });
+      return res.status(500).json({ error: "Delete failed" });
     }
 
     return res.json({ success: true });
   } catch (err: any) {
-    console.error("Error in DELETE /api/policies/[id]:", err);
-    return res.status(500).json({ error: err.message || "Internal server error" });
+    return res.status(500).json({ error: err.message });
   }
 }
+
 
 /**
  * PUT /api/policies/[id]/requirements/[requirementId] - Update a requirement
  */
 export async function updatePolicyRequirement(req: Request, res: Response) {
   try {
-    const supabase = await createClient();
+    const supabase = supabaseAdmin;
 
     // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+    const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ error: "Unauthorized" });
+}
+
 
     const requirementId = req.params.requirementId;
     const body = req.body;
@@ -307,13 +263,14 @@ export async function updatePolicyRequirement(req: Request, res: Response) {
  */
 export async function deletePolicyRequirement(req: Request, res: Response) {
   try {
-    const supabase = await createClient();
+    const supabase = supabaseAdmin;
 
     // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+    const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ error: "Unauthorized" });
+}
+
 
     const requirementId = req.params.requirementId;
 
@@ -340,13 +297,14 @@ export async function deletePolicyRequirement(req: Request, res: Response) {
  */
 export async function getPolicyRequirements(req: Request, res: Response) {
   try {
-    const supabase = await createClient();
+    const supabase = supabaseAdmin;
 
     // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+    const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ error: "Unauthorized" });
+}
+
 
     const policyId = req.params.id;
 
@@ -373,13 +331,14 @@ export async function getPolicyRequirements(req: Request, res: Response) {
  */
 export async function createPolicyRequirement(req: Request, res: Response) {
   try {
-    const supabase = await createClient();
+    const supabase = supabaseAdmin;
 
     // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+    const userId = req.user?.sub;
+if (!userId) {
+  return res.status(401).json({ error: "Unauthorized" });
+}
+
 
     const policyId = req.params.id;
     const body = req.body;
