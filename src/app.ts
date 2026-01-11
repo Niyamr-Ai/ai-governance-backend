@@ -23,6 +23,7 @@ import riskAssessmentRoutes from './routes/risk-assessment.routes';
 import riskAssessmentsRoutes from './routes/risk-assessments.routes';
 import ukComplianceRoutes from './routes/uk-compliance.routes';
 import userRoutes from './routes/user.routes';
+import evidenceRoutes from './routes/evidence.routes';
 
 const app = express();
 
@@ -65,6 +66,7 @@ app.use('/api/risk-assessment', riskAssessmentRoutes);
 app.use('/api/risk-assessments', riskAssessmentsRoutes);
 app.use('/api/uk-compliance', ukComplianceRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api', evidenceRoutes);
 // console.log("🔍 [BACKEND] User routes registered at /api/user");
 
 // Health check
