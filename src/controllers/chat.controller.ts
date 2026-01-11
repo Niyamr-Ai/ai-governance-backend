@@ -156,7 +156,26 @@ if (!userId) {
     const prompt = getPromptForMode(primaryMode, message, context);
 
     // Step 5: Generate response
+    console.log(`\n${'='.repeat(80)}`);
+    console.log(`💬 [CHATBOT] ===== Chat Request Processing =====`);
+    console.log(`${'='.repeat(80)}`);
+    console.log(`📝 [CHATBOT] User Message: ${message}`);
+    console.log(`🔍 [CHATBOT] Detected Mode: ${primaryMode}`);
+    console.log(`📄 [CHATBOT] Page Context: ${JSON.stringify(pageContext, null, 2)}`);
+    console.log(`👤 [CHATBOT] User ID: ${userId}`);
+    console.log(`${'─'.repeat(80)}\n`);
+
     const answer = await generateResponse(prompt);
+
+    console.log(`\n${'─'.repeat(80)}`);
+    console.log(`✅ [CHATBOT] Response Generated Successfully`);
+    console.log(`📊 [CHATBOT] Response Length: ${answer.length} characters`);
+    console.log(`📋 [CHATBOT] Response Preview (first 200 chars):`);
+    console.log(`   ${answer.substring(0, 200)}${answer.length > 200 ? '...' : ''}`);
+    console.log(`\n📄 [CHATBOT] Full Response:`);
+    console.log(`${'─'.repeat(80)}`);
+    console.log(answer);
+    console.log(`${'─'.repeat(80)}\n`);
 
     // Step 6: Extract suggested actions (includes secondary intents as follow-ups)
     const suggestedActions = extractSuggestedActions(answer, primaryMode, secondaryIntents);
@@ -170,6 +189,12 @@ if (!userId) {
       suggestedActions: suggestedActions.length > 0 ? suggestedActions : undefined,
       confidenceLevel: confidenceLevel // Only for SYSTEM_ANALYSIS mode
     };
+
+    console.log(`📤 [CHATBOT] Sending response to frontend`);
+    console.log(`   Mode: ${response.mode}`);
+    console.log(`   Suggested Actions: ${response.suggestedActions?.length || 0}`);
+    console.log(`   Confidence Level: ${response.confidenceLevel || 'N/A'}`);
+    console.log(`${'='.repeat(80)}\n`);
 
     return res.json(response);
   } catch (error: any) {
