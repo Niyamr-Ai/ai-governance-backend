@@ -82,22 +82,55 @@ export async function getUkCompliance(req: Request, res: Response) {
  */
 export async function postUkCompliance(req: Request, res: Response) {
   try {
+    console.log("[UK API] ===== POST /api/uk-compliance =====");
     const body = req.body;
-    const { answers, contextChunks: providedContext, system_name } = body;
+    const { answers, contextChunks: providedContext, system_name, company_name, company_use_case } = body;
 
     if (!answers) {
+      console.log("[UK API] ❌ Answers are required");
       return res.status(400).json({ error: "Answers are required" });
     }
 
     const userId = req.user!.sub;
+    if (!userId) {
+      console.log("[UK API] ❌ Unauthorized - No user ID");
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
     const supabase = getSupabaseClient();
     const openai = getOpenAIClient();
+
+    console.log("[UK API] Received payload keys:", Object.keys(body));
+    console.log("[UK API] System name:", system_name);
+    console.log("[UK API] Company name:", company_name);
+    console.log("[UK API] Company use case:", company_use_case);
+
+    // Extract evidence content from answers
+    const evidenceContent: Record<string, string> = {};
+    const answersWithoutEvidence: Record<string, any> = {};
+    
+    Object.keys(answers).forEach(key => {
+      if (key.endsWith('_content')) {
+        const evidenceKey = key.replace('_content', '');
+        evidenceContent[evidenceKey] = answers[key];
+      } else {
+        answersWithoutEvidence[key] = answers[key];
+      }
+    });
+
+    console.log(`[UK API] Extracted ${Object.keys(evidenceContent).length} evidence fields`);
+    console.log(`[UK API] Answers without evidence: ${Object.keys(answersWithoutEvidence).length} fields`);
 
     // Get context from RAG service if not provided
     let contextChunks = providedContext;
 
     if (!contextChunks) {
-      const userInput = Object.values(answers || {}).join(" ");
+      // Build user input including evidence content for better context
+      const evidenceText = Object.values(evidenceContent).join(' ');
+      const answersText = Object.values(answersWithoutEvidence || {}).join(" ");
+      const userInput = `${answersText} ${evidenceText}`.trim();
+
+      console.log(`[UK API] RAG query input length: ${userInput.length} characters`);
 
       // Use RAG service to get UK regulation context
       contextChunks = await getRegulationContextString(
@@ -143,8 +176,16 @@ Return ONLY a JSON object matching the schema below.
 Context:
 ${contextChunks}
 
+Company Information:
+${company_name ? `- Company Name: ${company_name}` : ''}
+${company_use_case ? `- Company Use Case: ${company_use_case}` : ''}
+${system_name ? `- System Name: ${system_name}` : ''}
+
 Answers:
-${JSON.stringify(answers)}
+${JSON.stringify(answersWithoutEvidence)}
+
+Evidence Documents (OCR extracted text):
+${Object.keys(evidenceContent).length > 0 ? Object.entries(evidenceContent).map(([key, content]) => `\n${key}:\n${content.substring(0, 2000)}${content.length > 2000 ? '...' : ''}`).join('\n\n') : 'No evidence documents provided.'}
 
 ---
 
@@ -364,6 +405,7 @@ Only return valid JSON. No explanation outside the JSON.
     // Store in database
     const payload = {
       user_id: userId,
+      org_id: userId, // Set org_id to user_id (1:1 mapping for tenant isolation)
       risk_level: assessment.riskLevel,
       overall_assessment: assessment.overallAssessment,
       safety_and_security: assessment.safetyAndSecurity,
@@ -374,9 +416,17 @@ Only return valid JSON. No explanation outside the JSON.
       sector_regulation: assessment.sectorRegulation,
       summary: assessment.summary,
       system_name: system_name || null,
-      raw_answers: answers,
+      company_name: company_name || null,
+      company_use_case: company_use_case || null,
+      raw_answers: answers, // Include all answers including evidence content
       accountable_person: accountablePerson || null,
     };
+
+    console.log("[UK API] Attempting to insert assessment with payload keys:", Object.keys(payload));
+    console.log("[UK API] Company fields:", {
+      company_name: payload.company_name,
+      company_use_case: payload.company_use_case
+    });
 
     const { data, error } = await supabase
       .from("uk_ai_assessments")
@@ -385,7 +435,44 @@ Only return valid JSON. No explanation outside the JSON.
       .single();
 
     if (error) {
-      console.error("Supabase insert error (uk_ai_assessments):", error);
+      console.error("[UK API] Supabase insert error:", error);
+      
+      // Check if error is about missing columns
+      const missingColumns = [];
+      if (error.message?.includes("company_name")) missingColumns.push("company_name");
+      if (error.message?.includes("company_use_case")) missingColumns.push("company_use_case");
+      if (error.message?.includes("org_id")) missingColumns.push("org_id");
+      
+      if (missingColumns.length > 0) {
+        console.log(`[UK API] Retrying insert without columns: ${missingColumns.join(", ")}`);
+        const payloadWithoutMissingColumns = { ...payload };
+        missingColumns.forEach(col => {
+          delete (payloadWithoutMissingColumns as any)[col];
+        });
+        
+        const { data: retryData, error: retryError } = await supabase
+          .from("uk_ai_assessments")
+          .insert([payloadWithoutMissingColumns])
+          .select()
+          .single();
+          
+        if (retryError) {
+          console.error("[UK API] Supabase retry insert error:", retryError);
+          return res.status(500).json({
+            error: "Failed to store assessment",
+            message: retryError.message || "Database error occurred",
+            missingColumns: missingColumns
+          });
+        }
+        
+        console.log("[UK API] Successfully inserted without missing columns.");
+        return res.status(200).json({ 
+          id: retryData.id,
+          ...assessment,
+          warning: `Assessment saved but some fields were skipped (${missingColumns.join(", ")}). Please run migration.`
+        });
+      }
+      
       return res.status(500).json({
         error: "Failed to store assessment",
         message: error.message || "Database error occurred"
@@ -393,12 +480,14 @@ Only return valid JSON. No explanation outside the JSON.
     }
 
     if (!data || !data.id) {
-      console.error("No data or ID returned from insert");
+      console.error("[UK API] No data or ID returned from insert");
       return res.status(500).json({
         error: "Failed to create assessment",
         message: "Assessment was processed but could not be saved"
       });
     }
+
+    console.log("[UK API] ✅ Successfully inserted assessment with ID:", data.id);
 
     // Auto-generate documentation (non-blocking)
     void (async () => {
@@ -430,8 +519,9 @@ Only return valid JSON. No explanation outside the JSON.
     })();
 
     return res.status(200).json({ id: data.id, ...assessment });
-  } catch (err) {
-    console.error("POST /api/uk-compliance error:", err);
+  } catch (err: any) {
+    console.error("[UK API] POST /api/uk-compliance error:", err);
+    console.error("[UK API] Error stack:", err.stack);
     return res.status(500).json({ message: "Internal Server Error" });
   }
 }
