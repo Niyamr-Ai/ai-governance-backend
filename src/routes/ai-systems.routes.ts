@@ -1,11 +1,14 @@
 import { Router } from 'express';
 import { authenticateToken } from '../middleware/auth';
-import { listAISystems, getSystemTasks, postBlockerResolutions, getComplianceData, getDocumentation, postDocumentation, getOverallRisk, getSystemPolicies, postSystemPolicy, getSystemRiskAssessments, postSystemRiskAssessment, postRiskMitigations, getRiskTrends, postSmartRiskAssessment, postTransitionPlan, postTransitionReadiness, updateSystemPolicyMapping, deleteSystemPolicyMapping } from '../controllers/ai-systems.controller';
+import { listAISystems, lookupSystemByName, getSystemTasks, postBlockerResolutions, getComplianceData, getDocumentation, postDocumentation, getOverallRisk, getSystemPolicies, postSystemPolicy, getSystemRiskAssessments, postSystemRiskAssessment, postRiskMitigations, getRiskTrends, postSmartRiskAssessment, postTransitionPlan, postTransitionReadiness, updateSystemPolicyMapping, deleteSystemPolicyMapping } from '../controllers/ai-systems.controller';
 
 const router = Router();
 
 // GET /api/ai-systems/list
 router.get('/list', authenticateToken, listAISystems);
+
+// GET /api/ai-systems/lookup-by-name?name=...
+router.get('/lookup-by-name', authenticateToken, lookupSystemByName);
 
 // GET /api/ai-systems/:id/tasks
 router.get('/:id/tasks', authenticateToken, getSystemTasks);
