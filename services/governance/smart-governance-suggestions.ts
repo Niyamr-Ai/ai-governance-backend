@@ -1,6 +1,6 @@
 import { getPlatformContextString } from "../ai/platform-rag-service";
 import { getUserSystemContextString } from "../ai/user-system-rag-service";
-import type { GovernanceRegulation } from "@/ai-governance-backend/types/governance-task";
+import type { GovernanceRegulation } from "../../types/governance-task";
 
 export interface SmartSuggestion {
   id: string;
@@ -230,7 +230,7 @@ CATEGORIES:
       throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as any;
     const content = data.choices?.[0]?.message?.content;
 
     if (!content) {

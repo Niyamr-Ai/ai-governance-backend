@@ -4,7 +4,7 @@ import path from "path";
 import multer from "multer";
 
 // Polyfill for DOMMatrix (required by pdfjs-dist in Node.js)
-if (typeof global.DOMMatrix === 'undefined') {
+if (typeof (global as any).DOMMatrix === 'undefined') {
   // Simple DOMMatrix polyfill for Node.js
   (global as any).DOMMatrix = class DOMMatrix {
     a = 1; b = 0; c = 0; d = 1; e = 0; f = 0;

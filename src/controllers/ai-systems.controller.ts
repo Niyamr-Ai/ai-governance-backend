@@ -839,7 +839,7 @@ if (!userId) {
     );
 
     // Group suggestions by risk category
-    const suggestionsByCategory = mitigationSuggestions.reduce((acc, suggestion) => {
+    const suggestionsByCategory = mitigationSuggestions.reduce((acc: Record<string, any[]>, suggestion) => {
       const category = suggestion.risk_category;
       if (!acc[category]) {
         acc[category] = [];

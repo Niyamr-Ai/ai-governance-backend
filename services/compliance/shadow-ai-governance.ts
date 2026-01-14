@@ -4,7 +4,7 @@
  * Functions to check for Shadow AI and enforce governance rules
  */
 
-import { createClient } from "@/ai-governance-backend/utils/supabase/server";
+import { createClient } from "../../src/utils/supabase/server";
 
 /**
  * Check if a system has confirmed Shadow AI

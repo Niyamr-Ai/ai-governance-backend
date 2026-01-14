@@ -27,6 +27,7 @@ const risk_assessment_routes_1 = __importDefault(require("./routes/risk-assessme
 const risk_assessments_routes_1 = __importDefault(require("./routes/risk-assessments.routes"));
 const uk_compliance_routes_1 = __importDefault(require("./routes/uk-compliance.routes"));
 const user_routes_1 = __importDefault(require("./routes/user.routes"));
+const evidence_routes_1 = __importDefault(require("./routes/evidence.routes"));
 const app = (0, express_1.default)();
 console.log("🔥🔥🔥 BACKEND APP STARTING 🔥🔥🔥");
 app.use(index_1.logger);
@@ -63,6 +64,7 @@ app.use('/api/risk-assessment', risk_assessment_routes_1.default);
 app.use('/api/risk-assessments', risk_assessments_routes_1.default);
 app.use('/api/uk-compliance', uk_compliance_routes_1.default);
 app.use('/api/user', user_routes_1.default);
+app.use('/api', evidence_routes_1.default);
 // console.log("🔍 [BACKEND] User routes registered at /api/user");
 // Health check
 app.get('/health', (req, res) => {

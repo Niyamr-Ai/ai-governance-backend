@@ -7,7 +7,7 @@
 
 import { getPlatformContextString } from './platform-rag-service';
 import { getUserSystemContextString } from './user-system-rag-service';
-import { getAllAttacks, type AttackPrompt, type AttackType } from '@/ai-governance-backend/services/ai/red-teaming/red-teaming-attacks';
+import { getAllAttacks, type AttackPrompt, type AttackType } from './red-teaming/red-teaming-attacks';
 import { OpenAI } from 'openai';
 
 const OPEN_AI_KEY = process.env.OPEN_AI_KEY;
@@ -134,7 +134,7 @@ async function getSystemContext(systemId: string, userId: string): Promise<any> 
       rawContext: '',
       hasSystemData: false,
       systemSpecific: false,
-      error: error.message
+      error: error instanceof Error ? error.message : String(error)
     };
   }
 }
@@ -276,7 +276,7 @@ async function generateSystemSpecificAttacks(
   
   // Get base attacks for each type
   for (const attackType of strategy.attackTypes) {
-    const baseAttacksOfType = baseAttacks.filter(a => a.type === attackType);
+    const baseAttacksOfType = baseAttacks.filter((a: AttackPrompt) => a.type === attackType);
     
     if (baseAttacksOfType.length === 0) continue;
     

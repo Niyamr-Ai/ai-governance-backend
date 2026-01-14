@@ -89,7 +89,7 @@ export async function generateShadowAIAssessment(
   let platformContext = '';
   let regulationContext = '';
 
-  const regulationType = getRegulationFocus(asset.detected_vendor, asset.environment);
+  const regulationType = getRegulationFocus(asset.detected_vendor ?? null, asset.environment ?? null);
 
   // Fetch system-specific context using User System RAG
   try {
@@ -234,7 +234,7 @@ RESPONSE FORMAT: Return a valid JSON object with this exact structure:
       throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as any;
     const content = data.choices?.[0]?.message?.content;
 
     if (!content) {
@@ -357,7 +357,7 @@ ${systemContext}
       throw new Error(`OpenAI API error: ${response.status}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as any;
     const content = data.choices?.[0]?.message?.content;
 
     if (!content) return [];
@@ -444,7 +444,7 @@ ${platformContext || 'No platform context available'}
       throw new Error(`OpenAI API error: ${response.status}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as any;
     const content = data.choices?.[0]?.message?.content;
 
     if (!content) return [];

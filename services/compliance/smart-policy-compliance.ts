@@ -287,7 +287,7 @@ RESPONSE FORMAT: Return a valid JSON object with this exact structure:
         throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
       }
 
-      const data = await response.json();
+      const data = await response.json() as any;
       const content = data.choices?.[0]?.message?.content;
 
       if (!content) {
@@ -434,7 +434,7 @@ RESPONSE FORMAT:
       throw new Error(`OpenAI API error: ${response.status}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as any;
     const content = data.choices?.[0]?.message?.content;
 
     if (!content) {
@@ -572,7 +572,7 @@ RESPONSE FORMAT:
       throw new Error(`OpenAI API error: ${response.status}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as any;
     const content = data.choices?.[0]?.message?.content;
 
     if (!content) {

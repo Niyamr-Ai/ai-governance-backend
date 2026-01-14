@@ -4,7 +4,7 @@
  * Rules-based engine for calculating risk scores across 5 dimensions:
  * Technical, Operational, Legal/Regulatory, Ethical/Societal, Business
  */
-import type { RiskDimensionScores, RiskDimensionWeights, DimensionDetails, RiskLevel } from "@/ai-governance-backend/types/automated-risk-assessment";
+import type { RiskDimensionScores, RiskDimensionWeights, DimensionDetails, RiskLevel } from "../../types/automated-risk-assessment";
 interface SystemData {
     compliance_status?: string;
     risk_tier?: string;

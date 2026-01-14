@@ -6,6 +6,7 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.listAISystems = listAISystems;
+exports.lookupSystemByName = lookupSystemByName;
 exports.getSystemTasks = getSystemTasks;
 exports.postBlockerResolutions = postBlockerResolutions;
 exports.getDocumentation = getDocumentation;
@@ -24,6 +25,7 @@ exports.getComplianceData = getComplianceData;
 exports.updateSystemPolicyMapping = updateSystemPolicyMapping;
 exports.deleteSystemPolicyMapping = deleteSystemPolicyMapping;
 const client_1 = require("../utils/supabase/client");
+const supabase_1 = require("../lib/supabase");
 const governance_tasks_1 = require("../../services/governance/governance-tasks");
 const smart_lifecycle_transition_1 = require("../../services/governance/smart-lifecycle-transition");
 const openai_1 = require("openai");
@@ -81,6 +83,139 @@ async function listAISystems(req, res) {
     }
     catch (error) {
         console.error("GET /api/ai-systems/list error:", error);
+        return res.status(500).json({
+            error: "Internal server error",
+            details: error.message
+        });
+    }
+}
+/**
+ * GET /api/ai-systems/lookup-by-name?name=...
+ * Lookup systemId by system name across all system tables
+ * Searches in: eu_ai_act_check_results, uk_ai_assessments, mas_ai_risk_assessments, ai_system_registry
+ */
+async function lookupSystemByName(req, res) {
+    try {
+        const userId = req.user?.sub;
+        if (!userId) {
+            return res.status(401).json({ message: "Unauthorized" });
+        }
+        const systemName = req.query.name;
+        if (!systemName || typeof systemName !== 'string' || systemName.trim().length === 0) {
+            return res.status(400).json({ error: 'System name is required' });
+        }
+        const searchName = systemName.trim();
+        // Search across all system tables
+        // Use case-insensitive partial matching (ILIKE for PostgreSQL)
+        const [euResult, ukResult, masResult, registryResult] = await Promise.all([
+            supabase_1.supabaseAdmin
+                .from("eu_ai_act_check_results")
+                .select("id, system_name")
+                .ilike("system_name", `%${searchName}%`)
+                .limit(1),
+            supabase_1.supabaseAdmin
+                .from("uk_ai_assessments")
+                .select("id, system_name")
+                .ilike("system_name", `%${searchName}%`)
+                .limit(1),
+            supabase_1.supabaseAdmin
+                .from("mas_ai_risk_assessments")
+                .select("id, system_name")
+                .ilike("system_name", `%${searchName}%`)
+                .limit(1),
+            supabase_1.supabaseAdmin
+                .from("ai_system_registry")
+                .select("system_id, name")
+                .ilike("name", `%${searchName}%`)
+                .limit(1)
+        ]);
+        // Check for exact matches first, then partial matches
+        let foundSystem = null;
+        // Check EU systems
+        if (euResult.data && euResult.data.length > 0) {
+            const exactMatch = euResult.data.find(s => s.system_name?.toLowerCase() === searchName.toLowerCase());
+            if (exactMatch) {
+                foundSystem = {
+                    id: exactMatch.id,
+                    name: exactMatch.system_name,
+                    source: "EU AI Act"
+                };
+            }
+            else if (!foundSystem) {
+                foundSystem = {
+                    id: euResult.data[0].id,
+                    name: euResult.data[0].system_name,
+                    source: "EU AI Act"
+                };
+            }
+        }
+        // Check UK systems
+        if (!foundSystem && ukResult.data && ukResult.data.length > 0) {
+            const exactMatch = ukResult.data.find(s => s.system_name?.toLowerCase() === searchName.toLowerCase());
+            if (exactMatch) {
+                foundSystem = {
+                    id: exactMatch.id,
+                    name: exactMatch.system_name,
+                    source: "UK AI Act"
+                };
+            }
+            else if (!foundSystem) {
+                foundSystem = {
+                    id: ukResult.data[0].id,
+                    name: ukResult.data[0].system_name,
+                    source: "UK AI Act"
+                };
+            }
+        }
+        // Check MAS systems
+        if (!foundSystem && masResult.data && masResult.data.length > 0) {
+            const exactMatch = masResult.data.find(s => s.system_name?.toLowerCase() === searchName.toLowerCase());
+            if (exactMatch) {
+                foundSystem = {
+                    id: exactMatch.id,
+                    name: exactMatch.system_name,
+                    source: "MAS"
+                };
+            }
+            else if (!foundSystem) {
+                foundSystem = {
+                    id: masResult.data[0].id,
+                    name: masResult.data[0].system_name,
+                    source: "MAS"
+                };
+            }
+        }
+        // Check Registry
+        if (!foundSystem && registryResult.data && registryResult.data.length > 0) {
+            const exactMatch = registryResult.data.find(s => s.name?.toLowerCase() === searchName.toLowerCase());
+            if (exactMatch) {
+                foundSystem = {
+                    id: exactMatch.system_id,
+                    name: exactMatch.name,
+                    source: "Registry"
+                };
+            }
+            else if (!foundSystem) {
+                foundSystem = {
+                    id: registryResult.data[0].system_id,
+                    name: registryResult.data[0].name,
+                    source: "Registry"
+                };
+            }
+        }
+        if (!foundSystem) {
+            return res.status(404).json({
+                error: `No system found with name matching "${searchName}"`
+            });
+        }
+        return res.status(200).json({
+            systemId: foundSystem.id,
+            name: foundSystem.name,
+            source: foundSystem.source
+        });
+    }
+    catch (error) {
+        console.error("GET /api/ai-systems/lookup-by-name error:", error);
         return res.status(500).json({
             error: "Internal server error",
             details: error.message

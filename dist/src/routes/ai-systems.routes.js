@@ -6,6 +6,8 @@ const ai_systems_controller_1 = require("../controllers/ai-systems.controller");
 const router = (0, express_1.Router)();
 // GET /api/ai-systems/list
 router.get('/list', auth_1.authenticateToken, ai_systems_controller_1.listAISystems);
+// GET /api/ai-systems/lookup-by-name?name=...
+router.get('/lookup-by-name', auth_1.authenticateToken, ai_systems_controller_1.lookupSystemByName);
 // GET /api/ai-systems/:id/tasks
 router.get('/:id/tasks', auth_1.authenticateToken, ai_systems_controller_1.getSystemTasks);
 // POST /api/ai-systems/:id/blocker-resolutions

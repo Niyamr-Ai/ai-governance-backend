@@ -9,7 +9,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.generateTargetedTests = generateTargetedTests;
 const platform_rag_service_1 = require("./platform-rag-service");
 const user_system_rag_service_1 = require("./user-system-rag-service");
-const red_teaming_attacks_1 = require("@/ai-governance-backend/services/ai/red-teaming/red-teaming-attacks");
+const red_teaming_attacks_1 = require("./red-teaming/red-teaming-attacks");
 const openai_1 = require("openai");
 const OPEN_AI_KEY = process.env.OPEN_AI_KEY;
 if (!OPEN_AI_KEY) {
@@ -79,7 +79,7 @@ async function getSystemContext(systemId, userId) {
             rawContext: '',
             hasSystemData: false,
             systemSpecific: false,
-            error: error.message
+            error: error instanceof Error ? error.message : String(error)
         };
     }
 }
@@ -183,7 +183,7 @@ async function generateSystemSpecificAttacks(strategy, systemContext, attackMeth
     const baseAttacks = (0, red_teaming_attacks_1.getAllAttacks)();
     // Get base attacks for each type
     for (const attackType of strategy.attackTypes) {
-        const baseAttacksOfType = baseAttacks.filter(a => a.type === attackType);
+        const baseAttacksOfType = baseAttacks.filter((a) => a.type === attackType);
         if (baseAttacksOfType.length === 0)
             continue;
         // Select attacks to customize

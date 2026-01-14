@@ -10,6 +10,12 @@ import { Request, Response } from 'express';
  */
 export declare function listAISystems(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
 /**
+ * GET /api/ai-systems/lookup-by-name?name=...
+ * Lookup systemId by system name across all system tables
+ * Searches in: eu_ai_act_check_results, uk_ai_assessments, mas_ai_risk_assessments, ai_system_registry
+ */
+export declare function lookupSystemByName(req: Request, res: Response): Promise<Response<any, Record<string, any>>>;
+/**
  * GET /api/ai-systems/[id]/tasks
  * Get governance tasks for an AI system
  */

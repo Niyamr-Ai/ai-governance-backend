@@ -7,7 +7,7 @@ import type {
   DimensionDetails,
   RiskDimensionScores,
   ComplianceChecklistItem 
-} from "@/ai-governance-backend/types/automated-risk-assessment";
+} from "../../types/automated-risk-assessment";
 
 export interface ContextualRiskAssessment extends Omit<AutomatedRiskAssessment, 'id' | 'assessed_at' | 'created_at' | 'updated_at'> {
   context_sources: {
@@ -137,7 +137,7 @@ export async function generateContextualRiskAssessment(
   let systemContext = '';
   let platformContext = '';
   let regulationContext = '';
-  let contextQuality = { regulation: 'low' as const, platform: 'low' as const, system: 'low' as const };
+  let contextQuality: { regulation: 'high' | 'medium' | 'low', platform: 'high' | 'medium' | 'low', system: 'high' | 'medium' | 'low' } = { regulation: 'low', platform: 'low', system: 'low' };
 
   const regulationType = mapRegulationTypeToRAG(systemData.regulation_type);
 
@@ -319,7 +319,7 @@ RESPONSE FORMAT: Return a valid JSON object with this exact structure:
       throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as any;
     const content = data.choices?.[0]?.message?.content;
 
     if (!content) {
@@ -503,7 +503,7 @@ RESPONSE FORMAT:
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const data = await response.json() as any;
         const content = data.choices?.[0]?.message?.content;
 
         if (content) {
@@ -676,7 +676,7 @@ RESPONSE FORMAT:
       throw new Error(`OpenAI API error: ${response.status}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as any;
     const content = data.choices?.[0]?.message?.content;
 
     if (!content) {

@@ -18,5 +18,4 @@ Object.defineProperty(exports, "__esModule", { value: true });
 __exportStar(require("./registry"), exports);
 __exportStar(require("./mas"), exports);
 __exportStar(require("./governance-task"), exports);
-__exportStar(require("./policy"), exports);
 //# sourceMappingURL=index.js.map

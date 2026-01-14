@@ -1,4 +1,4 @@
-import type { AutomatedRiskAssessment, RiskLevel, RiskDimensionScores } from "@/ai-governance-backend/types/automated-risk-assessment";
+import type { AutomatedRiskAssessment, RiskLevel, RiskDimensionScores } from "../../types/automated-risk-assessment";
 export interface ContextualRiskAssessment extends Omit<AutomatedRiskAssessment, 'id' | 'assessed_at' | 'created_at' | 'updated_at'> {
     context_sources: {
         regulation_context_quality: 'high' | 'medium' | 'low';

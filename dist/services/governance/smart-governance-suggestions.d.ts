@@ -1,4 +1,4 @@
-import type { GovernanceRegulation } from "@/ai-governance-backend/types/governance-task";
+import type { GovernanceRegulation } from "../../types/governance-task";
 export interface SmartSuggestion {
     id: string;
     title: string;

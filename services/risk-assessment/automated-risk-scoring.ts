@@ -11,7 +11,7 @@ import type {
   DimensionDetail,
   DimensionDetails,
   RiskLevel,
-} from "@/ai-governance-backend/types/automated-risk-assessment";
+} from "../../types/automated-risk-assessment";
 
 interface SystemData {
   // Compliance Assessment Data

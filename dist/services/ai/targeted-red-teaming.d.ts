@@ -4,7 +4,7 @@
  * Uses Platform RAG + User System RAG to generate targeted, system-specific
  * attack scenarios and security tests based on system characteristics.
  */
-import { type AttackPrompt, type AttackType } from '@/ai-governance-backend/services/ai/red-teaming/red-teaming-attacks';
+import { type AttackPrompt, type AttackType } from './red-teaming/red-teaming-attacks';
 /**
  * Enhanced attack prompt with system-specific targeting
  */

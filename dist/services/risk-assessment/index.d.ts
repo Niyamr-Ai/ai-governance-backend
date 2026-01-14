@@ -3,7 +3,7 @@
  *
  * Helper functions for calculating overall risk levels and managing risk assessments.
  */
-import type { RiskAssessment, RiskLevel, OverallRiskLevel } from "@/ai-governance-backend/types/risk-assessment";
+import type { RiskAssessment, RiskLevel, OverallRiskLevel } from "../../types/risk-assessment";
 /**
  * Calculate the overall risk level for an AI system based on its assessments.
  *

@@ -37,7 +37,7 @@ async function generateShadowAIAssessment(asset, userId, organizationContext) {
     let systemContext = '';
     let platformContext = '';
     let regulationContext = '';
-    const regulationType = getRegulationFocus(asset.detected_vendor, asset.environment);
+    const regulationType = getRegulationFocus(asset.detected_vendor ?? null, asset.environment ?? null);
     // Fetch system-specific context using User System RAG
     try {
         const systemQuery = buildSystemContextQuery(asset);

@@ -117,16 +117,16 @@ export async function getUserSystemContextString(
       .filter((text) => text.length > 0) || [];
 
     if (chunks.length === 0) {
-      console.warn(`[User System RAG] No relevant chunks found for user ${userId}`);
+      console.warn(`[User System RAG] No relevant chunks found for user ${orgId}`);
       return "No relevant system data found.";
     }
 
-    console.log(`[User System RAG] Found ${chunks.length} relevant chunks for user ${userId}`);
+    console.log(`[User System RAG] Found ${chunks.length} relevant chunks for user ${orgId}`);
     
     // Join chunks with double newline for readability
     return chunks.join('\n\n');
   } catch (error) {
-    console.error(`[User System RAG] Error retrieving context for user ${userId}:`, error);
+    console.error(`[User System RAG] Error retrieving context for user ${orgId}:`, error);
     throw error;
   }
 }

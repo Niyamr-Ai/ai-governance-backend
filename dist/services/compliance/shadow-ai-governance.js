@@ -9,7 +9,7 @@ exports.checkShadowAI = checkShadowAI;
 exports.checkUnlinkedShadowAI = checkUnlinkedShadowAI;
 exports.getShadowAIWarning = getShadowAIWarning;
 exports.shouldBlockComplianceApproval = shouldBlockComplianceApproval;
-const server_1 = require("@/ai-governance-backend/utils/supabase/server");
+const server_1 = require("../../src/utils/supabase/server");
 /**
  * Check if a system has confirmed Shadow AI
  * @param systemId - The AI system ID to check
