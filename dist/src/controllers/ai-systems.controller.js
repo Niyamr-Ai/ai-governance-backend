@@ -48,14 +48,17 @@ async function listAISystems(req, res) {
             client_1.supabase
                 .from("eu_ai_act_check_results")
                 .select("id, system_name, created_at")
+                .eq("org_id", userId)
                 .order("created_at", { ascending: false }),
             client_1.supabase
                 .from("uk_ai_assessments")
                 .select("id, system_name, created_at")
+                .eq("org_id", userId)
                 .order("created_at", { ascending: false }),
             client_1.supabase
                 .from("mas_ai_risk_assessments")
                 .select("id, system_name, created_at")
+                .eq("org_id", userId)
                 .order("created_at", { ascending: false }),
         ]);
         // Combine all systems with their source
@@ -438,6 +441,7 @@ async function getDocumentation(req, res) {
         const { data: docs, error } = await client_1.supabase
             .from("compliance_documentation")
             .select("*")
+            .eq("org_id", userId)
             .eq("ai_system_id", systemId)
             .order("created_at", { ascending: false });
         if (error) {

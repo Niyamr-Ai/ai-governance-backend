@@ -66,6 +66,7 @@ async function getRedTeaming(req, res) {
         let query = supabase
             .from("red_teaming_results")
             .select("*")
+            .eq("org_id", userId)
             .order("tested_at", { ascending: false });
         // Apply filters
         if (attack_type) {

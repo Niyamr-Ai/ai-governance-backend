@@ -27,6 +27,7 @@ async function getDocumentation(req, res) {
         let query = supabase
             .from("compliance_documentation")
             .select("*")
+            .eq("org_id", userId)
             .order("created_at", { ascending: false });
         // Apply filters
         if (regulationType) {

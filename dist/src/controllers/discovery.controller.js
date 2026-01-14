@@ -36,6 +36,7 @@ async function createSmartAssessment(req, res) {
         const { data: asset, error: assetError } = await supabase
             .from("discovered_ai_assets")
             .select("*")
+            .eq("org_id", userId)
             .eq("id", asset_id)
             .single();
         if (assetError || !asset) {
@@ -77,6 +78,7 @@ async function getDiscovery(req, res) {
         let query = supabase
             .from("discovered_ai_assets")
             .select("*")
+            .eq("org_id", userId)
             .order("discovered_at", { ascending: false });
         // Apply filters
         const shadowStatus = req.query.shadow_status;
@@ -219,6 +221,7 @@ async function getLinkSuggestions(req, res) {
         const { data: asset, error: assetError } = await supabase
             .from("discovered_ai_assets")
             .select("*")
+            .eq("org_id", userId)
             .eq("id", asset_id)
             .single();
         if (assetError || !asset) {
@@ -264,6 +267,7 @@ async function markAsShadowAI(req, res) {
         const { data: existingAsset, error: fetchError } = await supabase
             .from("discovered_ai_assets")
             .select("*")
+            .eq("org_id", userId)
             .eq("id", assetId)
             .single();
         if (fetchError || !existingAsset) {
@@ -338,6 +342,7 @@ async function resolveDiscoveredAsset(req, res) {
         const { data: existingAsset, error: fetchError } = await supabase
             .from("discovered_ai_assets")
             .select("*")
+            .eq("org_id", userId)
             .eq("id", assetId)
             .single();
         if (fetchError || !existingAsset) {
@@ -520,6 +525,7 @@ async function getPrioritization(req, res) {
         let query = supabase
             .from("discovered_ai_assets")
             .select("*")
+            .eq("org_id", userId)
             .order("discovered_at", { ascending: false });
         // Filter by specific asset IDs if provided
         if (asset_ids && Array.isArray(asset_ids) && asset_ids.length > 0) {
@@ -590,6 +596,7 @@ async function linkDiscoveredAsset(req, res) {
         const { data: existingAsset, error: fetchError } = await supabase
             .from("discovered_ai_assets")
             .select("*")
+            .eq("org_id", userId)
             .eq("id", assetId)
             .single();
         if (fetchError || !existingAsset) {

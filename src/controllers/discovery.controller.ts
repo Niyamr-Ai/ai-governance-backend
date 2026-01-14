@@ -18,7 +18,7 @@ export async function createSmartAssessment(req: Request, res: Response) {
     if (!userId) {
       return res.status(401).json({ error: "Unauthorized" });
     }
-    
+
     const body = req.body;
     const { asset_id, organization_context } = body;
 
@@ -33,6 +33,7 @@ export async function createSmartAssessment(req: Request, res: Response) {
     const { data: asset, error: assetError } = await supabase
       .from("discovered_ai_assets")
       .select("*")
+      .eq("org_id", userId)
       .eq("id", asset_id)
       .single();
 
@@ -84,6 +85,7 @@ if (!userId) {
     let query = supabase
       .from("discovered_ai_assets")
       .select("*")
+      .eq("org_id", userId)
       .order("discovered_at", { ascending: false });
 
     // Apply filters
@@ -245,6 +247,7 @@ if (!userId) {
     const { data: asset, error: assetError } = await supabase
       .from("discovered_ai_assets")
       .select("*")
+      .eq("org_id", userId)
       .eq("id", asset_id)
       .single();
 
@@ -299,6 +302,7 @@ if (!userId) {
     const { data: existingAsset, error: fetchError } = await supabase
       .from("discovered_ai_assets")
       .select("*")
+      .eq("org_id", userId)
       .eq("id", assetId)
       .single();
 
@@ -382,6 +386,7 @@ if (!userId) {
     const { data: existingAsset, error: fetchError } = await supabase
       .from("discovered_ai_assets")
       .select("*")
+      .eq("org_id", userId)
       .eq("id", assetId)
       .single();
 
@@ -585,6 +590,7 @@ if (!userId) {
     let query = supabase
       .from("discovered_ai_assets")
       .select("*")
+      .eq("org_id", userId)
       .order("discovered_at", { ascending: false });
 
     // Filter by specific asset IDs if provided
@@ -670,6 +676,7 @@ if (!userId) {
     const { data: existingAsset, error: fetchError } = await supabase
       .from("discovered_ai_assets")
       .select("*")
+      .eq("org_id", userId)
       .eq("id", assetId)
       .single();
 

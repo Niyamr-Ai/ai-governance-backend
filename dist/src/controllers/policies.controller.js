@@ -26,6 +26,7 @@ async function getPolicies(req, res) {
         const { data, error } = await supabase_1.supabaseAdmin
             .from("policies")
             .select("*")
+            .eq("org_id", userId)
             .order("created_at", { ascending: false });
         if (error) {
             return res.status(500).json({ error: "Failed to fetch policies" });

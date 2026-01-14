@@ -32,14 +32,17 @@ export async function listAISystems(req: Request, res: Response) {
       supabase
         .from("eu_ai_act_check_results")
         .select("id, system_name, created_at")
+        .eq("org_id", userId)
         .order("created_at", { ascending: false }),
       supabase
         .from("uk_ai_assessments")
         .select("id, system_name, created_at")
+        .eq("org_id", userId)
         .order("created_at", { ascending: false }),
       supabase
         .from("mas_ai_risk_assessments")
         .select("id, system_name, created_at")
+        .eq("org_id", userId)
         .order("created_at", { ascending: false }),
     ]);
 
@@ -472,6 +475,7 @@ if (!userId) {
     const { data: docs, error } = await supabase
       .from("compliance_documentation")
       .select("*")
+      .eq("org_id", userId)
       .eq("ai_system_id", systemId)
       .order("created_at", { ascending: false });
 

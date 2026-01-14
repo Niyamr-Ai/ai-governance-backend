@@ -32,6 +32,7 @@ export async function getRedTeaming(req: Request, res: Response) {
     let query = supabase
       .from("red_teaming_results")
       .select("*")
+      .eq("org_id", userId)
       .order("tested_at", { ascending: false });
 
     // Apply filters

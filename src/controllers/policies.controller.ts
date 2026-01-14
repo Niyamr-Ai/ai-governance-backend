@@ -20,6 +20,7 @@ export async function getPolicies(req: Request, res: Response) {
     const { data, error } = await supabaseAdmin
       .from("policies")
       .select("*")
+      .eq("org_id", userId)
       .order("created_at", { ascending: false });
 
     if (error) {
