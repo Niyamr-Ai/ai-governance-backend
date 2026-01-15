@@ -23,17 +23,34 @@ async function getPolicies(req, res) {
         if (!userId) {
             return res.status(401).json({ error: "Unauthorized" });
         }
-        const { data, error } = await supabase_1.supabaseAdmin
+        // Get external policies (visible to all users)
+        const { data: externalPolicies, error: externalError } = await supabase_1.supabaseAdmin
             .from("policies")
             .select("*")
+            .eq("policy_type", "External")
+            .order("created_at", { ascending: false });
+        if (externalError) {
+            console.error("Error fetching external policies:", externalError);
+        }
+        // Get internal policies (only for user's organization)
+        const { data: internalPolicies, error: internalError } = await supabase_1.supabaseAdmin
+            .from("policies")
+            .select("*")
+            .eq("policy_type", "Internal")
             .eq("org_id", userId)
             .order("created_at", { ascending: false });
-        if (error) {
-            return res.status(500).json({ error: "Failed to fetch policies" });
+        if (internalError) {
+            console.error("Error fetching internal policies:", internalError);
         }
-        return res.json(data ?? []);
+        // Combine external and internal policies
+        const allPolicies = [
+            ...(externalPolicies ?? []),
+            ...(internalPolicies ?? [])
+        ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        return res.json(allPolicies);
     }
     catch (err) {
+        console.error("Error in getPolicies:", err);
         return res.status(500).json({ error: err.message });
     }
 }
