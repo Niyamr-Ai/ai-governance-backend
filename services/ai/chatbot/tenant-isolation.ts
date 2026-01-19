@@ -23,36 +23,63 @@ export async function verifySystemAccess(
   try {
     const supabase = supabaseAdmin;
 
-    // Check if system exists and user has access (RLS enforces this)
-    // Explicitly verify by attempting to read the system
-    const { data: system, error } = await supabase
+    // Check if system exists in any of the compliance tables (EU, UK, MAS) or registry
+    // Try multiple tables since systems can be in different compliance frameworks
+    
+    // 1. Check ai_system_registry
+    const { data: registrySystem, error: registryError } = await supabase
       .from('ai_system_registry')
       .select('system_id')
       .eq('system_id', systemId)
       .single();
 
-    if (error || !system) {
-      console.warn(`Access denied: User ${userId} cannot access system ${systemId}`);
-      return false;
+    if (!registryError && registrySystem) {
+      console.log(`[Tenant Isolation] ✅ System found in ai_system_registry`);
+      return true;
     }
 
-    // Additional check: Verify through compliance data (if exists)
-    // This ensures user can only access systems they own
-    // RLS policies should enforce this, but we verify explicitly
-    const { data: complianceCheck } = await supabase
+    // 2. Check EU AI Act compliance
+    const { data: euSystem, error: euError } = await supabase
       .from('eu_ai_act_check_results')
-      .select('user_id')
-      .eq('user_id', userId)
-      .limit(1)
+      .select('id')
+      .eq('id', systemId)
       .single();
 
-    // If user has any compliance data, they likely have access
-    // RLS policies on ai_system_registry should prevent cross-tenant access
-    // This is an additional safety check
+    if (!euError && euSystem) {
+      console.log(`[Tenant Isolation] ✅ System found in eu_ai_act_check_results`);
+      return true;
+    }
 
-    return true;
+    // 3. Check UK AI Act compliance
+    const { data: ukSystem, error: ukError } = await supabase
+      .from('uk_ai_assessments')
+      .select('id')
+      .eq('id', systemId)
+      .single();
+
+    if (!ukError && ukSystem) {
+      console.log(`[Tenant Isolation] ✅ System found in uk_ai_assessments`);
+      return true;
+    }
+
+    // 4. Check MAS AI Act compliance
+    const { data: masSystem, error: masError } = await supabase
+      .from('mas_ai_risk_assessments')
+      .select('id')
+      .eq('id', systemId)
+      .single();
+
+    if (!masError && masSystem) {
+      console.log(`[Tenant Isolation] ✅ System found in mas_ai_risk_assessments`);
+      return true;
+    }
+
+    // System not found in any table - access denied
+    console.warn(`[Tenant Isolation] ❌ Access denied: User ${userId} cannot access system ${systemId}`);
+    console.warn(`[Tenant Isolation]    System not found in: ai_system_registry, eu_ai_act_check_results, uk_ai_assessments, mas_ai_risk_assessments`);
+    return false;
   } catch (error) {
-    console.error('Error verifying system access:', error);
+    console.error('[Tenant Isolation] ❌ Error verifying system access:', error);
     return false;
   }
 }

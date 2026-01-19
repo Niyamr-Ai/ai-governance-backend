@@ -61,6 +61,37 @@ function detectRegulationType(userMessage: string): RegulationType {
 }
 
 /**
+ * Detect regulation type from page context (pathname)
+ * 
+ * @param pageContext - Page context with pathname
+ * @returns RegulationType - Detected regulation from URL path, or null if unclear
+ */
+function detectRegulationTypeFromPageContext(pageContext: PageContext): RegulationType | null {
+  const pathname = pageContext.additionalMetadata?.pathname || '';
+  const pathLower = pathname.toLowerCase();
+  
+  console.log(`[Context] 🔍 Detecting regulation from pathname: "${pathname}"`);
+  
+  if (pathLower.includes('/mas/')) {
+    console.log(`[Context] ✅ Detected MAS from pathname`);
+    return 'MAS';
+  }
+  
+  if (pathLower.includes('/uk/')) {
+    console.log(`[Context] ✅ Detected UK from pathname`);
+    return 'UK';
+  }
+  
+  if (pathLower.includes('/eu/') || pathLower.includes('/compliance/')) {
+    console.log(`[Context] ✅ Detected EU from pathname`);
+    return 'EU';
+  }
+  
+  console.log(`[Context] ⚠️ Could not detect regulation from pathname, returning null`);
+  return null;
+}
+
+/**
  * Determine if query is about regulations vs platform features
  * 
  * @param userMessage - The user's question
@@ -263,26 +294,101 @@ export async function getSystemAnalysisContext(
         // Fallback to database query if RAG has no data
         console.log(`[Context] No User System RAG data found, falling back to database`);
         
+        // Detect regulation framework from page context (pathname)
+        const regulationFromPage = detectRegulationTypeFromPageContext(pageContext);
+        console.log(`[Context] Detected regulation from page context: ${regulationFromPage || 'none (will try all tables)'}`);
+        
         const { data: systemData } = await supabase
           .from('ai_system_registry')
           .select('*')
           .eq('system_id', systemId)
           .single();
 
-        const { data: complianceData } = await supabase
-          .from('eu_ai_act_check_results')
-          .select('*')
-          .eq('system_name', systemData?.name || '')
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single();
+        let complianceData: any = null;
 
-        systemName = systemData?.name || 'Unknown System';
-        systemDescription = systemData?.description || 'No description available';
-        riskLevel = complianceData?.risk_tier || 'Unknown';
-        complianceStatus = complianceData?.compliance_status || 'Unknown';
-        assessments = complianceData ? [complianceData] : [];
-        gaps = complianceData?.high_risk_obligations?.missing || [];
+        // Query the correct compliance table based on page context
+        if (regulationFromPage === 'MAS') {
+          console.log(`[Context] Querying MAS compliance table for system ${systemId}`);
+          const { data: masData } = await supabase
+            .from('mas_ai_risk_assessments')
+            .select('*')
+            .eq('id', systemId)
+            .single();
+          
+          if (masData) {
+            console.log(`[Context] ✅ Found MAS assessment data for system ${masData.system_name}`);
+            complianceData = masData;
+            systemName = masData.system_name || systemData?.name || 'Unknown System';
+            systemDescription = masData.description || systemData?.description || 'No description available';
+            riskLevel = masData.overall_risk_level || 'Unknown';
+            complianceStatus = masData.overall_compliance_status || 'Unknown';
+            assessments = [masData];
+            
+            // Build MAS-specific context with pillar information
+            let masContext = `\n\n**MAS Compliance Framework - ${systemName}:**\n`;
+            masContext += `- Overall Risk Level: ${riskLevel}\n`;
+            masContext += `- Overall Compliance Status: ${complianceStatus}\n`;
+            masContext += `- Sector: ${masData.sector || 'Not specified'}\n`;
+            masContext += `- System Status: ${masData.system_status || 'Not specified'}\n`;
+            
+            // Extract gaps from relevant MAS pillars based on user question
+            const userMsgLower = userMessage.toLowerCase();
+            if (userMsgLower.includes('fairness')) {
+              const fairnessPillar = masData.fairness as any;
+              gaps = fairnessPillar?.gaps || [];
+              masContext += `\n**Fairness Pillar:**\n`;
+              masContext += `- Status: ${fairnessPillar?.status || 'Unknown'}\n`;
+              masContext += `- Score: ${fairnessPillar?.score || 0}/100\n`;
+              if (fairnessPillar?.gaps && fairnessPillar.gaps.length > 0) {
+                masContext += `- Gaps: ${fairnessPillar.gaps.join(', ')}\n`;
+              }
+            } else if (userMsgLower.includes('third') || userMsgLower.includes('vendor')) {
+              const thirdPartyPillar = masData.thirdParty as any;
+              gaps = thirdPartyPillar?.gaps || [];
+              masContext += `\n**Third-Party/Vendor Management Pillar:**\n`;
+              masContext += `- Status: ${thirdPartyPillar?.status || 'Unknown'}\n`;
+              masContext += `- Score: ${thirdPartyPillar?.score || 0}/100\n`;
+              if (thirdPartyPillar?.gaps && thirdPartyPillar.gaps.length > 0) {
+                masContext += `- Gaps: ${thirdPartyPillar.gaps.join(', ')}\n`;
+              }
+            }
+            
+            systemDescription += masContext;
+          } else {
+            console.log(`[Context] ⚠️ No MAS assessment found for system ${systemId}, using basic system data`);
+            systemName = systemData?.name || 'Unknown System';
+            systemDescription = systemData?.description || 'No description available';
+          }
+        } else if (regulationFromPage === 'UK') {
+          console.log(`[Context] Querying UK compliance table for system ${systemId}`);
+          const { data: ukData } = await supabase
+            .from('uk_ai_assessments')
+            .select('*')
+            .eq('id', systemId)
+            .single();
+          complianceData = ukData;
+          systemName = ukData?.system_name || systemData?.name || 'Unknown System';
+          systemDescription = ukData?.description || systemData?.description || 'No description available';
+          riskLevel = ukData?.risk_tier || 'Unknown';
+          complianceStatus = ukData?.compliance_status || 'Unknown';
+          assessments = ukData ? [ukData] : [];
+          gaps = ukData?.gaps || [];
+        } else {
+          // Default to EU or try all if unclear
+          console.log(`[Context] Querying EU compliance table for system ${systemId}`);
+          const { data: euData } = await supabase
+            .from('eu_ai_act_check_results')
+            .select('*')
+            .eq('id', systemId)
+            .single();
+          complianceData = euData;
+          systemName = euData?.system_name || systemData?.name || 'Unknown System';
+          systemDescription = euData?.description || systemData?.description || 'No description available';
+          riskLevel = euData?.risk_tier || 'Unknown';
+          complianceStatus = euData?.compliance_status || 'Unknown';
+          assessments = euData ? [euData] : [];
+          gaps = euData?.high_risk_obligations?.missing || [];
+        }
       }
     } catch (userRagError) {
       console.error('[Context] Error querying User System RAG:', userRagError);
@@ -292,8 +398,15 @@ export async function getSystemAnalysisContext(
 
     // SUPPORTING SOURCE: Regulation RAG (enrichment only)
     try {
-      const regulationType = detectRegulationType(userMessage);
+      // Prioritize regulation type from page context over user message
+      const regulationFromPage = detectRegulationTypeFromPageContext(pageContext);
+      const regulationFromMessage = detectRegulationType(userMessage);
+      const regulationType = regulationFromPage || regulationFromMessage;
       
+      console.log(`[Context] 📋 Regulation detection results:`);
+      console.log(`[Context]    From page context: ${regulationFromPage || 'null'}`);
+      console.log(`[Context]    From user message: ${regulationFromMessage}`);
+      console.log(`[Context]    Final selection: ${regulationType}`);
       console.log(`[Context] Querying ${regulationType} regulation RAG for supporting context`);
       const regulatoryContext = await getRegulationContextString(userMessage, regulationType, 3);
       

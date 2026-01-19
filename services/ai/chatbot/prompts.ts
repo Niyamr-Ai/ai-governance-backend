@@ -47,8 +47,13 @@ IMPORTANT SCOPE LIMITATION:
  */
 export function buildExplainPrompt(
   userMessage: string,
-  context: ExplainContext
+  context: ExplainContext,
+  conversationHistory?: string
 ): string {
+  const historySection = conversationHistory 
+    ? `\n\n${conversationHistory}\n\nIMPORTANT: Use the previous conversation context to provide continuity and avoid repeating information already discussed. Reference previous questions or answers when relevant.`
+    : '';
+
   return `${BASE_SAFETY_PROMPT}
 
 MODE: EXPLAIN
@@ -58,6 +63,7 @@ You have access to:
 ${context.regulatoryText ? `Regulatory Text:\n${context.regulatoryText}\n` : ''}
 ${context.conceptDefinitions ? `Concept Definitions:\n${context.conceptDefinitions.join('\n')}\n` : ''}
 ${context.platformBehavior ? `Platform Behavior:\n${context.platformBehavior}\n` : ''}
+${historySection}
 
 User Question: "${userMessage}"
 
@@ -71,6 +77,7 @@ Instructions:
 - Do NOT access user system data
 - Do NOT provide legal advice
 - Always clarify that you are providing educational information, not legal advice
+${conversationHistory ? '- Use previous conversation context to maintain continuity and avoid repetition' : ''}
 
 Format your response as clear, well-structured text. Use bullet points or numbered lists when helpful.`;
 }
@@ -80,7 +87,8 @@ Format your response as clear, well-structured text. Use bullet points or number
  */
 export function buildSystemAnalysisPrompt(
   userMessage: string,
-  context: SystemAnalysisContext
+  context: SystemAnalysisContext,
+  conversationHistory?: string
 ): string {
   const systemInfo = context.systemName ? `
 System Information:
@@ -105,6 +113,10 @@ System Information:
       (context.confidenceLevel === 'low' ? '- Low: Critical information missing, analysis is limited\n' : '')
     : '';
 
+  const historySection = conversationHistory 
+    ? `\n\n${conversationHistory}\n\nIMPORTANT: Use the previous conversation context to provide continuity. If the user is asking follow-up questions about a previously discussed system or report, reference that context. Answer questions about specific reports or assessments that were mentioned earlier.`
+    : '';
+
   return `${BASE_SAFETY_PROMPT}
 
 MODE: SYSTEM_ANALYSIS
@@ -116,6 +128,7 @@ ${systemInfo}
 ${assessmentsInfo}
 ${gapsInfo}
 ${confidenceInfo}
+${historySection}
 
 User Question: "${userMessage}"
 
@@ -130,6 +143,8 @@ Instructions:
 - Never use absolute or final language
 - Do NOT make definitive legal or compliance claims
 - Recommend consulting experts for complex matters
+${conversationHistory ? '- Use previous conversation context to answer follow-up questions about previously discussed systems, reports, or assessments' : ''}
+${conversationHistory ? '- If the user asks about a specific report or assessment mentioned earlier, reference that context' : ''}
 
 - Indicate confidence level of analysis:
   - High confidence: complete and recent system data available
@@ -144,7 +159,8 @@ Format your response as clear, structured analysis. Use sections for different a
  */
 export function buildActionPrompt(
   userMessage: string,
-  context: ActionContext
+  context: ActionContext,
+  conversationHistory?: string
 ): string {
   const workflowsInfo = context.availableWorkflows && context.availableWorkflows.length > 0
     ? `\nAvailable Workflows:\n${context.availableWorkflows.map(wf => `- ${wf}`).join('\n')}`
@@ -158,15 +174,19 @@ export function buildActionPrompt(
     ? `\nSuggested Next Steps:\n${context.nextSteps.map(step => `- ${step}`).join('\n')}`
     : '\nNo specific next steps identified.';
 
+  const historySection = conversationHistory 
+    ? `\n\n${conversationHistory}\n\nIMPORTANT: Use the previous conversation context to provide continuity. If the user is asking for next steps related to a previously discussed system or task, reference that context.`
+    : '';
+
   return `${BASE_SAFETY_PROMPT}
 
 MODE: ACTION
 Purpose: Recommend actionable next steps within the platform in a short, actionable, step-by-step tone.
 
-
 ${workflowsInfo}
 ${tasksInfo}
 ${nextStepsInfo}
+${historySection}
 
 User Question: "${userMessage}"
 
@@ -177,6 +197,7 @@ Instructions:
 - Prioritize urgent or important actions
 - Be concise and direct
 - If no clear action is available, suggest exploring relevant features
+${conversationHistory ? '- Use previous conversation context to provide relevant next steps based on what was discussed earlier' : ''}
 
 Format your response as a clear action plan. Use numbered steps or bullet points for sequential actions.`;
 }
@@ -187,15 +208,16 @@ Format your response as a clear action plan. Use numbered steps or bullet points
 export function getPromptForMode(
   mode: ChatbotMode,
   userMessage: string,
-  context: ExplainContext | SystemAnalysisContext | ActionContext
+  context: ExplainContext | SystemAnalysisContext | ActionContext,
+  conversationHistory?: string
 ): string {
   switch (mode) {
     case 'EXPLAIN':
-      return buildExplainPrompt(userMessage, context as ExplainContext);
+      return buildExplainPrompt(userMessage, context as ExplainContext, conversationHistory);
     case 'SYSTEM_ANALYSIS':
-      return buildSystemAnalysisPrompt(userMessage, context as SystemAnalysisContext);
+      return buildSystemAnalysisPrompt(userMessage, context as SystemAnalysisContext, conversationHistory);
     case 'ACTION':
-      return buildActionPrompt(userMessage, context as ActionContext);
+      return buildActionPrompt(userMessage, context as ActionContext, conversationHistory);
     default:
       throw new Error(`Unknown chatbot mode: ${mode}`);
   }

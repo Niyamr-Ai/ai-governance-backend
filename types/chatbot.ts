@@ -35,16 +35,17 @@ export interface ChatMessage {
  * Request payload for chat API
  * 
  * Conversation Memory Policy:
- * - Conversations are NOT persisted by default
- * - Each request fetches system data fresh
- * - conversationHistory (if provided) is transient
- * - No long-term storage unless explicitly enabled later
+ * - Conversations are now persisted in Supabase chat_history table
+ * - Each request fetches last 3 conversation messages for context
+ * - conversationHistory (if provided) is still accepted but history is fetched from DB
+ * - History is stored per org_id and session_id for tenant isolation
  */
 export interface ChatRequest {
   message: string;
   pageContext: PageContext;
-  conversationHistory?: ChatMessage[]; // Transient - not persisted
+  conversationHistory?: ChatMessage[]; // Legacy: Still accepted but history is fetched from DB
   persona?: 'internal' | 'auditor' | 'regulator'; // Future: persona-based filtering (defaults to 'internal')
+  sessionId?: string; // Session ID for grouping related conversations (defaults to 'default')
 }
 
 /**
