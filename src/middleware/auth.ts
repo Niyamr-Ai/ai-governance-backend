@@ -37,16 +37,16 @@ export function authenticateToken(
   console.log("🔍 [BACKEND] Authorization header:", req.headers.authorization ? "present" : "missing");
 
   try {
-  const authHeader = req.headers.authorization;
+    const authHeader = req.headers.authorization;
     console.log("🔍 [BACKEND] Authorization header present:", !!authHeader);
 
-  if (!authHeader) {
+    if (!authHeader) {
       console.log("❌ [BACKEND] No authorization header");
       return res.status(401).json({
         error: "Authentication required",
         message: "Missing Authorization header",
       });
-  }
+    }
 
     // Expect: Bearer <token>
     const token = authHeader.startsWith("Bearer ")
@@ -63,11 +63,17 @@ export function authenticateToken(
       });
     }
 
-    // Temporarily hardcode the JWT secret for testing
-    const jwtSecret = "5V1G+wSmUsel/CIkgtIHrdqlOmyRDHIBH1M4L0Dt6sQYZuJG9+Gmt+/vMAfC9o7P093J3UJg7O4BEl8bNBL8mw==";
-    console.log("🔍 [BACKEND] Using hardcoded JWT secret, length:", jwtSecret.length);
+    const jwtSecret = process.env.SUPABASE_JWT_SECRET;
 
-    console.log("🔍 [BACKEND] Verifying JWT token...");
+    if (!jwtSecret) {
+      console.error("❌ [BACKEND] SUPABASE_JWT_SECRET is not defined in environment variables");
+      return res.status(500).json({
+        error: "Server configuration error",
+        message: "Missing JWT secret configuration"
+      });
+    }
+
+    console.log("🔍 [BACKEND] Verifying JWT token using environment secret...");
     const decoded = jwt.verify(token, jwtSecret) as any;
     console.log("✅ [BACKEND] JWT token verified successfully");
 
@@ -88,7 +94,7 @@ export function authenticateToken(
     req.user = user;
     console.log("✅ [BACKEND] User attached to request, calling next()");
 
-      next();
+    next();
   } catch (error: any) {
     console.error("❌ [BACKEND] Authentication failed:", error.message);
     console.error("❌ [BACKEND] Error type:", error.name);
@@ -101,7 +107,8 @@ export function authenticateToken(
           ? error.message
           : "Authentication failed",
     });
-}}
+  }
+}
 
 /**
  * Helper: Extract user ID from JWT token
