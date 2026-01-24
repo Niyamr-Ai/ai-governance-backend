@@ -5,6 +5,7 @@
  * 
  * Features:
  * - Stores user queries and bot responses in Supabase
+ * - Indexes conversations to Pinecone for semantic search
  * - Retrieves conversation history for context (last 3 messages by default)
  * - Supports session management (multiple conversation sessions per org)
  * - Tenant isolation via org_id
@@ -15,6 +16,108 @@
 
 import { supabaseAdmin } from '../../../src/lib/supabase';
 import type { ChatbotMode, PageContext } from '../../../types/chatbot';
+import { Pinecone } from '@pinecone-database/pinecone';
+import { OpenAI } from 'openai';
+import { getChatHistoryContextString } from '../chat-history-rag-service';
+import { estimateTokens, truncateHistoryText, truncateHistoryToFitBudget } from './token-utils';
+
+const PINECONE_API_KEY = process.env.PINECONE_API_KEY;
+const OPEN_AI_KEY = process.env.OPEN_AI_KEY;
+
+// Initialize Pinecone and OpenAI clients for indexing
+let pinecone: Pinecone | null = null;
+let openai: OpenAI | null = null;
+
+if (PINECONE_API_KEY) {
+  pinecone = new Pinecone({ apiKey: PINECONE_API_KEY });
+}
+
+if (OPEN_AI_KEY) {
+  openai = new OpenAI({ apiKey: OPEN_AI_KEY });
+}
+
+const CHAT_HISTORY_INDEX_NAME = 'chat-history';
+
+/**
+ * Generate embedding for chat history indexing
+ */
+async function generateEmbedding(text: string): Promise<number[]> {
+  if (!openai) {
+    throw new Error('OpenAI client not initialized - missing OPEN_AI_KEY');
+  }
+
+  const response = await openai.embeddings.create({
+    model: 'text-embedding-3-small',
+    input: text,
+  });
+
+  return response.data[0].embedding;
+}
+
+/**
+ * Index chat history to Pinecone for semantic search
+ */
+async function indexChatHistoryToPinecone(
+  chatId: string,
+  orgId: string,
+  sessionId: string,
+  userQuery: string,
+  botResponse: string,
+  systemId?: string,
+  chatbotMode?: ChatbotMode
+): Promise<void> {
+  if (!pinecone || !openai) {
+    console.warn('[CHAT HISTORY] ⚠️ Pinecone/OpenAI not initialized, skipping indexing');
+    return;
+  }
+
+  try {
+    // Combine user query and bot response for better semantic search
+    const combinedText = `User: ${userQuery}\nAssistant: ${botResponse}`;
+    
+    // Generate embedding
+    const embedding = await generateEmbedding(combinedText);
+
+    // Prepare metadata
+    const metadata: any = {
+      org_id: orgId,
+      session_id: sessionId,
+      user_query: userQuery,
+      bot_response: botResponse,
+      created_at: new Date().toISOString(),
+    };
+
+    if (systemId) {
+      metadata.system_id = systemId;
+    }
+
+    if (chatbotMode) {
+      metadata.chatbot_mode = chatbotMode;
+    }
+
+    // Upsert to Pinecone
+    const index = pinecone.index(CHAT_HISTORY_INDEX_NAME);
+    const vectorId = `chat-${chatId}`;
+    
+    console.log(`[CHAT HISTORY] ===== INDEXING TO PINECONE =====`);
+    console.log(`[CHAT HISTORY] Index: ${CHAT_HISTORY_INDEX_NAME}`);
+    console.log(`[CHAT HISTORY] Vector ID: ${vectorId}`);
+    console.log(`[CHAT HISTORY] Metadata: ${JSON.stringify(metadata, null, 2)}`);
+    console.log(`[CHAT HISTORY] Embedding dimension: ${embedding.length}`);
+    
+    await index.upsert([{
+      id: vectorId,
+      values: embedding,
+      metadata: metadata,
+    }]);
+
+    console.log(`[CHAT HISTORY] ✅ Successfully indexed chat ${chatId} to Pinecone`);
+    console.log(`[CHAT HISTORY] ===== END INDEXING =====\n`);
+  } catch (error: any) {
+    console.error('[CHAT HISTORY] ❌ Failed to index chat to Pinecone:', error.message);
+    // Don't throw - indexing failure shouldn't break chat logging
+  }
+}
 
 export interface ChatHistoryEntry {
   id: string;
@@ -108,10 +211,11 @@ export async function logChatHistory(params: LogChatHistoryParams): Promise<void
     console.log(`[CHAT HISTORY]    Mode: ${chatbotMode || 'N/A'}`);
     console.log(`[CHAT HISTORY]    System ID: ${systemId || 'N/A'}`);
 
-    const { error } = await supabase
+    const { data: insertedData, error } = await supabase
       .from('chat_history')
       .insert(data)
-      .select();
+      .select()
+      .single();
 
     if (error) {
       console.error('[CHAT HISTORY] ❌ Failed to log chat:', error);
@@ -119,6 +223,21 @@ export async function logChatHistory(params: LogChatHistoryParams): Promise<void
     }
 
     console.log('[CHAT HISTORY] ✅ Chat logged successfully');
+
+    // Index to Pinecone for semantic search (non-blocking)
+    if (insertedData?.id) {
+      indexChatHistoryToPinecone(
+        insertedData.id,
+        orgId,
+        sessionId,
+        userQuery,
+        botResponse,
+        systemId,
+        chatbotMode
+      ).catch((err) => {
+        console.error('[CHAT HISTORY] ⚠️ Failed to index chat (non-critical):', err);
+      });
+    }
   } catch (error: any) {
     console.error('[CHAT HISTORY] ❌ Critical failure logging chat:', error);
     // Don't throw - chat logging failure shouldn't break the chat flow
@@ -270,25 +389,134 @@ async function getFallbackHistory(
 }
 
 /**
+ * Detect if user query is asking about past conversations (needs semantic search)
+ */
+function needsSemanticSearch(userQuery: string): boolean {
+  const query = userQuery.toLowerCase();
+  const semanticKeywords = [
+    'what did we discuss',
+    'what did we talk about',
+    'what did i ask',
+    'earlier',
+    'before',
+    'previous',
+    'past conversation',
+    'remember',
+    'mentioned',
+    'discussed',
+    'talked about',
+    'asked about',
+    'told you',
+    'explained',
+    'summarize what',
+    'recall',
+    'remind me'
+  ];
+  
+  return semanticKeywords.some(keyword => query.includes(keyword));
+}
+
+/**
  * Get recent chat history formatted for prompt inclusion
- * Returns last N messages formatted as conversation pairs
+ * Uses hybrid approach: SQL for recent messages + RAG for semantic search when needed
+ * Automatically truncates to fit within token budget
  * 
  * @param orgId - Organization ID
  * @param sessionId - Session ID (optional)
  * @param systemId - Optional system ID filter
  * @param limit - Number of recent messages (default: 3)
- * @returns Promise<string> - Formatted conversation history string
+ * @param userQuery - Current user query (for semantic search detection)
+ * @param tokenBudget - Maximum tokens allowed for history (optional, will use all available if not provided)
+ * @returns Promise<string> - Formatted conversation history string (truncated if needed)
  */
 export async function getFormattedChatHistory(
   orgId: string,
   sessionId?: string,
   systemId?: string,
-  limit: number = 3
+  limit: number = 3,
+  userQuery?: string,
+  tokenBudget?: number
 ): Promise<string> {
-  const history = await getChatHistory(orgId, sessionId, systemId, limit);
+  const sessionIdToUse = sessionId || 'default';
+  
+  // Check if semantic search is needed
+  const useSemanticSearch = userQuery && needsSemanticSearch(userQuery);
+  
+  if (useSemanticSearch) {
+    console.log(`[CHAT HISTORY] 🔍 Semantic search detected - using RAG for chat history retrieval`);
+    try {
+      // Use RAG for semantic search over chat history
+      const ragContext = await getChatHistoryContextString(
+        userQuery,
+        orgId,
+        sessionIdToUse,
+        limit, // topK
+        systemId
+      );
+      
+      if (ragContext && ragContext !== 'No relevant chat history found.') {
+        console.log(`[CHAT HISTORY] ✅ Retrieved semantic chat history via RAG`);
+        let formattedHistory = `\n\n=== RELEVANT PREVIOUS CONVERSATION CONTEXT (Semantic Search) ===\n${ragContext}\n=== END OF RELEVANT CONVERSATION CONTEXT ===\n\n`;
+        
+        // Apply token budget if provided
+        if (tokenBudget !== undefined) {
+          const historyTokens = estimateTokens(formattedHistory);
+          console.log(`[CHAT HISTORY] 📊 Semantic history tokens: ${historyTokens} / budget: ${tokenBudget}`);
+          if (historyTokens > tokenBudget) {
+            formattedHistory = truncateHistoryText(formattedHistory, tokenBudget);
+            console.log(`[CHAT HISTORY] ✂️ Truncated semantic history to fit token budget`);
+          }
+        }
+        
+        return formattedHistory;
+      } else {
+        console.log(`[CHAT HISTORY] ℹ️ No relevant semantic matches found, falling back to SQL`);
+        // Fall through to SQL retrieval
+      }
+    } catch (error: any) {
+      console.error(`[CHAT HISTORY] ⚠️ RAG search failed, falling back to SQL:`, error.message);
+      // Fall through to SQL retrieval
+    }
+  }
+  
+  // Default: Use SQL for chronological recent messages
+  console.log(`[CHAT HISTORY] 📋 Using SQL retrieval for chronological chat history`);
+  let history = await getChatHistory(orgId, sessionIdToUse, systemId, limit);
 
   if (history.length === 0) {
     return '';
+  }
+
+  // Apply token budget truncation if provided
+  if (tokenBudget !== undefined && tokenBudget > 0) {
+    const historyTokens = estimateTokens(
+      history.map(e => `User: ${e.user_query}\nAssistant: ${e.bot_response}`).join('\n\n')
+    );
+    console.log(`[CHAT HISTORY] 📊 SQL history tokens: ${historyTokens} / budget: ${tokenBudget}`);
+    
+    if (historyTokens > tokenBudget) {
+      const originalLength = history.length;
+      // Convert to simple format for truncation (maintains order)
+      const simpleHistory = history.map(e => ({ user_query: e.user_query, bot_response: e.bot_response }));
+      const truncatedSimple = truncateHistoryToFitBudget(simpleHistory, tokenBudget);
+      
+      // Map back: keep only entries that match truncated results (in order)
+      // Since truncation maintains order, we can use index matching
+      const truncatedHistory: ChatHistoryEntry[] = [];
+      for (let i = 0; i < truncatedSimple.length && i < history.length; i++) {
+        const truncatedEntry = truncatedSimple[i];
+        const originalEntry = history[i];
+        // Update bot_response if it was truncated
+        if (originalEntry.user_query === truncatedEntry.user_query) {
+          truncatedHistory.push({
+            ...originalEntry,
+            bot_response: truncatedEntry.bot_response
+          });
+        }
+      }
+      history = truncatedHistory;
+      console.log(`[CHAT HISTORY] ✂️ Truncated SQL history from ${originalLength} to ${history.length} entries to fit token budget`);
+    }
   }
 
   const formatted = history.map((entry, index) => {

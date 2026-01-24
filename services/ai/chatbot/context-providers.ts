@@ -151,8 +151,17 @@ export async function getExplainContext(
       // Use Regulation RAG for regulatory questions
       const regulationType = detectRegulationType(userMessage);
       
-      console.log(`[Context] Querying ${regulationType} regulation RAG for EXPLAIN mode`);
+      console.log(`[Context] ===== EXPLAIN MODE - REGULATION RAG =====`);
+      console.log(`[Context] Regulation Type: ${regulationType}`);
+      console.log(`[Context] Query: ${userMessage.substring(0, 100)}${userMessage.length > 100 ? '...' : ''}`);
+      console.log(`[Context] Using unified 'regulations' index with metadata filter`);
+      
       const ragContext = await getRegulationContextString(userMessage, regulationType, 5);
+      
+      console.log(`[Context] RAG Context Retrieved: ${ragContext ? 'Yes' : 'No'}`);
+      if (ragContext && ragContext.length > 0) {
+        console.log(`[Context] Context length: ${ragContext.length} characters`);
+      }
       
       if (ragContext && ragContext !== 'No relevant context found.' && ragContext !== 'No query provided.') {
         regulatoryText = `**${regulationType} Regulatory Context:**\n\n${ragContext}\n\n**Important:** This information is for educational purposes only and does not constitute legal advice. Always consult with legal professionals for compliance decisions.`;

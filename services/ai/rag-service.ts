@@ -2,7 +2,7 @@
  * RAG Service - Retrieval Augmented Generation for Regulations
  * 
  * Provides semantic search over regulation documents stored in Pinecone.
- * Supports EU, UK, and MAS regulations with separate indexes.
+ * Supports EU, UK, and MAS regulations in a unified index with metadata filtering.
  */
 
 import { Pinecone } from "@pinecone-database/pinecone";
@@ -25,12 +25,8 @@ if (OPEN_AI_KEY) {
 
 export type RegulationType = 'EU' | 'UK' | 'MAS';
 
-// Map regulation types to Pinecone index names
-const INDEX_MAP: Record<RegulationType, string> = {
-  'EU': 'eu-ai-act',
-  'UK': 'uk-ai-act',
-  'MAS': 'mas-ai-act',
-};
+// Unified index name for all regulations
+const INDEX_NAME = 'regulations';
 
 /**
  * Generate embedding for a text query using OpenAI
@@ -72,21 +68,34 @@ export async function getRegulationContextString(
       return "No query provided.";
     }
 
-    // Get the appropriate index
-    const indexName = INDEX_MAP[regulationType];
-    const index = pinecone.index(indexName);
+    // Get the unified regulations index
+    const index = pinecone.index(INDEX_NAME);
 
     // Generate embedding for the query
     console.log(`[RAG] Generating embedding for ${regulationType} query`);
     const embedding = await generateEmbedding(normalizedQuery);
 
-    // Query Pinecone
-    console.log(`[RAG] Querying ${regulationType} regulation chunks from index: ${indexName}`);
+    // Build filter to get only the specific regulation type
+    const filter = {
+      regulation_type: { $eq: regulationType }
+    };
+
+    // Query Pinecone with metadata filter
+    console.log(`[RAG] ===== REGULATION QUERY =====`);
+    console.log(`[RAG] Index: ${INDEX_NAME} (unified regulations index)`);
+    console.log(`[RAG] Regulation Type: ${regulationType}`);
+    console.log(`[RAG] Filter: ${JSON.stringify(filter, null, 2)}`);
+    console.log(`[RAG] TopK: ${topK}`);
+    console.log(`[RAG] Query: ${normalizedQuery.substring(0, 100)}${normalizedQuery.length > 100 ? '...' : ''}`);
+    
     const queryResponse = await index.query({
       vector: embedding,
       topK: topK,
       includeMetadata: true,
+      filter: filter,
     });
+    
+    console.log(`[RAG] Query Response: Found ${queryResponse.matches?.length || 0} matches`);
 
     // Extract context chunks from matches
     const chunks = queryResponse.matches
@@ -102,6 +111,10 @@ export async function getRegulationContextString(
     }
 
     console.log(`[RAG] Found ${chunks.length} relevant chunks for ${regulationType}`);
+    if (chunks.length > 0) {
+      console.log(`[RAG] First chunk preview: ${chunks[0].substring(0, 150)}...`);
+    }
+    console.log(`[RAG] ===== END REGULATION QUERY =====\n`);
     
     // Join chunks with double newline for readability
     return chunks.join('\n\n');
@@ -129,15 +142,20 @@ export async function getRegulationContext(
       return [];
     }
 
-    const indexName = INDEX_MAP[regulationType];
-    const index = pinecone.index(indexName);
+    const index = pinecone.index(INDEX_NAME);
 
     const embedding = await generateEmbedding(normalizedQuery);
+
+    // Build filter to get only the specific regulation type
+    const filter = {
+      regulation_type: { $eq: regulationType }
+    };
 
     const queryResponse = await index.query({
       vector: embedding,
       topK: topK,
       includeMetadata: true,
+      filter: filter,
     });
 
     const chunks = queryResponse.matches

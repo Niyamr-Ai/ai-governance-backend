@@ -32,6 +32,7 @@ import {
   logChatHistory,
   getFormattedChatHistory
 } from '../../services/ai/chatbot/chat-history-service';
+import { estimateTokens, calculateHistoryTokenBudget, MODEL_LIMITS, truncateHistoryText } from '../../services/ai/chatbot/token-utils';
 
 /**
  * Get OpenAI client
@@ -143,15 +144,30 @@ export async function chatHandler(req: Request, res: Response) {
     const sessionIdToUse = sessionId || 'default';
     const systemIdForHistory = pageContext?.systemId;
     
+    // Step 0.5: Get context first to calculate token budget accurately
+    // (We'll recalculate after getting context, but for now use a conservative estimate)
+    const userMessageTokens = estimateTokens(message);
+    const estimatedBasePromptTokens = 2000; // Conservative estimate for base prompt
+    const historyTokenBudget = calculateHistoryTokenBudget('gpt-4o', estimatedBasePromptTokens, userMessageTokens);
+    
+    console.log(`📊 [CHATBOT] Token budget calculation:`);
+    console.log(`   User message: ~${userMessageTokens} tokens`);
+    console.log(`   Estimated base prompt: ~${estimatedBasePromptTokens} tokens`);
+    console.log(`   Available for history: ~${historyTokenBudget} tokens`);
+    
+    // Pass user message to enable semantic search when needed
     const conversationHistoryText = await getFormattedChatHistory(
       orgId,
       sessionIdToUse,
       systemIdForHistory,
-      3 // Last 3 messages
+      3, // Last 3 messages
+      message, // User query for semantic search detection
+      historyTokenBudget // Token budget for truncation
     );
     
     if (conversationHistoryText) {
-      console.log(`✅ [CHATBOT] Retrieved conversation history (last 3 messages)`);
+      const historyTokens = estimateTokens(conversationHistoryText);
+      console.log(`✅ [CHATBOT] Retrieved conversation history (${historyTokens} tokens)`);
       console.log(`📖 [CHATBOT] History preview: ${conversationHistoryText.substring(0, 200)}...`);
     } else {
       console.log(`ℹ️  [CHATBOT] No previous conversation history found (this is a new conversation)`);
@@ -209,8 +225,40 @@ export async function chatHandler(req: Request, res: Response) {
     // Step 4: Build prompt (using primary mode only) with conversation history
     console.log(`\n${'─'.repeat(80)}`);
     console.log(`📝 [CHATBOT] Building prompt with conversation history...`);
-    const prompt = getPromptForMode(primaryMode, message, context, conversationHistoryText);
-    console.log(`✅ [CHATBOT] Prompt built (length: ${prompt.length} characters)`);
+    
+    // Recalculate token budget with actual context size
+    const actualBasePromptTokens = estimateTokens(
+      getPromptForMode(primaryMode, message, context, '') // Prompt without history
+    );
+    const actualHistoryTokenBudget = calculateHistoryTokenBudget('gpt-4o', actualBasePromptTokens, userMessageTokens);
+    
+    // If history exceeds budget, truncate it
+    let finalHistoryText = conversationHistoryText;
+    if (conversationHistoryText && actualHistoryTokenBudget > 0) {
+      const currentHistoryTokens = estimateTokens(conversationHistoryText);
+      if (currentHistoryTokens > actualHistoryTokenBudget) {
+        console.log(`⚠️  [CHATBOT] History (${currentHistoryTokens} tokens) exceeds budget (${actualHistoryTokenBudget} tokens), truncating...`);
+        finalHistoryText = truncateHistoryText(conversationHistoryText, actualHistoryTokenBudget);
+        console.log(`✂️  [CHATBOT] Truncated history to ${estimateTokens(finalHistoryText)} tokens`);
+      }
+    }
+    
+    const prompt = getPromptForMode(primaryMode, message, context, finalHistoryText);
+    const promptTokens = estimateTokens(prompt);
+    const totalAvailableTokens = MODEL_LIMITS['gpt-4o'].contextWindow;
+    const maxOutputTokens = MODEL_LIMITS['gpt-4o'].maxOutputTokens;
+    const estimatedInputTokens = promptTokens;
+    
+    console.log(`✅ [CHATBOT] Prompt built (${prompt.length} characters, ~${promptTokens} tokens)`);
+    console.log(`📊 [CHATBOT] Token usage:`);
+    console.log(`   Input prompt: ~${estimatedInputTokens} tokens`);
+    console.log(`   Max output: ${maxOutputTokens} tokens`);
+    console.log(`   Total: ~${estimatedInputTokens + maxOutputTokens} / ${totalAvailableTokens} tokens`);
+    
+    if (estimatedInputTokens + maxOutputTokens > totalAvailableTokens) {
+      console.warn(`⚠️  [CHATBOT] WARNING: Estimated token usage (${estimatedInputTokens + maxOutputTokens}) exceeds model limit (${totalAvailableTokens})`);
+    }
+    
     console.log(`📋 [CHATBOT] Prompt preview (first 300 chars):`);
     console.log(`   ${prompt.substring(0, 300)}${prompt.length > 300 ? '...' : ''}`);
 

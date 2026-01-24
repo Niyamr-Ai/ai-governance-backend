@@ -1,0 +1,2368 @@
+{
+	"info": {
+		"_postman_id": "ai-governance-api-collection",
+		"name": "AI Governance API",
+		"description": "Complete API collection for AI Governance Platform Backend",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Health Check",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": ["{{base_url}}"],
+							"path": ["health"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Chat",
+			"item": [
+				{
+					"name": "Chat with AI Copilot",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"message\": \"What are the compliance requirements for AI systems?\",\n  \"pageContext\": {\n    \"pageType\": \"dashboard\",\n    \"orgId\": \"your-org-id\"\n  },\n  \"persona\": \"internal\",\n  \"sessionId\": \"default\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/chat",
+							"host": ["{{base_url}}"],
+							"path": ["api", "chat"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "AI Systems",
+			"item": [
+				{
+					"name": "List AI Systems",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/ai-systems/list",
+							"host": ["{{base_url}}"],
+							"path": ["api", "ai-systems", "list"]
+						}
+					}
+				},
+				{
+					"name": "Lookup System by Name",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/ai-systems/lookup-by-name?name=SystemName",
+							"host": ["{{base_url}}"],
+							"path": ["api", "ai-systems", "lookup-by-name"],
+							"query": [
+								{
+									"key": "name",
+									"value": "SystemName"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get System Tasks",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/ai-systems/:id/tasks",
+							"host": ["{{base_url}}"],
+							"path": ["api", "ai-systems", ":id", "tasks"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "system-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Post Blocker Resolutions",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"resolutions\": []\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/ai-systems/:id/blocker-resolutions",
+							"host": ["{{base_url}}"],
+							"path": ["api", "ai-systems", ":id", "blocker-resolutions"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "system-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Compliance Data",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/ai-systems/:id/compliance-data",
+							"host": ["{{base_url}}"],
+							"path": ["api", "ai-systems", ":id", "compliance-data"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "system-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Documentation",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/ai-systems/:id/documentation",
+							"host": ["{{base_url}}"],
+							"path": ["api", "ai-systems", ":id", "documentation"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "system-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Post Documentation",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"documentation\": {}\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/ai-systems/:id/documentation",
+							"host": ["{{base_url}}"],
+							"path": ["api", "ai-systems", ":id", "documentation"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "system-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Overall Risk",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/ai-systems/:id/overall-risk",
+							"host": ["{{base_url}}"],
+							"path": ["api", "ai-systems", ":id", "overall-risk"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "system-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get System Policies",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/ai-systems/:id/policies",
+							"host": ["{{base_url}}"],
+							"path": ["api", "ai-systems", ":id", "policies"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "system-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Post System Policy",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"policyId\": \"policy-id\",\n  \"status\": \"compliant\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/ai-systems/:id/policies",
+							"host": ["{{base_url}}"],
+							"path": ["api", "ai-systems", ":id", "policies"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "system-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Update System Policy Mapping",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"compliant\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/ai-systems/:id/policies/:mappingId",
+							"host": ["{{base_url}}"],
+							"path": ["api", "ai-systems", ":id", "policies", ":mappingId"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "system-id-here"
+								},
+								{
+									"key": "mappingId",
+									"value": "mapping-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Delete System Policy Mapping",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/ai-systems/:id/policies/:mappingId",
+							"host": ["{{base_url}}"],
+							"path": ["api", "ai-systems", ":id", "policies", ":mappingId"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "system-id-here"
+								},
+								{
+									"key": "mappingId",
+									"value": "mapping-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get System Risk Assessments",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/ai-systems/:id/risk-assessments",
+							"host": ["{{base_url}}"],
+							"path": ["api", "ai-systems", ":id", "risk-assessments"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "system-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Post System Risk Assessment",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"assessment\": {}\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/ai-systems/:id/risk-assessments",
+							"host": ["{{base_url}}"],
+							"path": ["api", "ai-systems", ":id", "risk-assessments"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "system-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Post Risk Mitigations",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"mitigations\": []\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/ai-systems/:id/risk-mitigations",
+							"host": ["{{base_url}}"],
+							"path": ["api", "ai-systems", ":id", "risk-mitigations"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "system-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Risk Trends",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/ai-systems/:id/risk-trends",
+							"host": ["{{base_url}}"],
+							"path": ["api", "ai-systems", ":id", "risk-trends"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "system-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Post Smart Risk Assessment",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"assessment\": {}\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/ai-systems/:id/smart-risk-assessment",
+							"host": ["{{base_url}}"],
+							"path": ["api", "ai-systems", ":id", "smart-risk-assessment"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "system-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Post Transition Plan",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"plan\": {}\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/ai-systems/:id/transition-plan",
+							"host": ["{{base_url}}"],
+							"path": ["api", "ai-systems", ":id", "transition-plan"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "system-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Post Transition Readiness",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"readiness\": {}\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/ai-systems/:id/transition-readiness",
+							"host": ["{{base_url}}"],
+							"path": ["api", "ai-systems", ":id", "transition-readiness"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "system-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Lifecycle",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/ai-systems/:id/lifecycle",
+							"host": ["{{base_url}}"],
+							"path": ["api", "ai-systems", ":id", "lifecycle"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "system-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Update Lifecycle",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"stage\": \"production\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/ai-systems/:id/lifecycle",
+							"host": ["{{base_url}}"],
+							"path": ["api", "ai-systems", ":id", "lifecycle"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "system-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Automated Risk Assessment",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/ai-systems/:id/automated-risk-assessment",
+							"host": ["{{base_url}}"],
+							"path": ["api", "ai-systems", ":id", "automated-risk-assessment"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "system-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Create Automated Risk Assessment",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"assessment\": {}\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/ai-systems/:id/automated-risk-assessment",
+							"host": ["{{base_url}}"],
+							"path": ["api", "ai-systems", ":id", "automated-risk-assessment"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "system-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Approve Automated Risk Assessment",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/ai-systems/:id/automated-risk-assessment/:assessmentId/approve",
+							"host": ["{{base_url}}"],
+							"path": ["api", "ai-systems", ":id", "automated-risk-assessment", ":assessmentId", "approve"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "system-id-here"
+								},
+								{
+									"key": "assessmentId",
+									"value": "assessment-id-here"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Risk Assessments",
+			"item": [
+				{
+					"name": "Get Risk Assessment by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/risk-assessments/:id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "risk-assessments", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "assessment-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Update Risk Assessment",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"assessment\": {}\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/risk-assessments/:id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "risk-assessments", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "assessment-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Delete Risk Assessment",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/risk-assessments/:id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "risk-assessments", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "assessment-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Submit Risk Assessment",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/risk-assessments/:id/submit",
+							"host": ["{{base_url}}"],
+							"path": ["api", "risk-assessments", ":id", "submit"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "assessment-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Approve Risk Assessment",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/risk-assessments/:id/approve",
+							"host": ["{{base_url}}"],
+							"path": ["api", "risk-assessments", ":id", "approve"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "assessment-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Reject Risk Assessment",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/risk-assessments/:id/reject",
+							"host": ["{{base_url}}"],
+							"path": ["api", "risk-assessments", ":id", "reject"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "assessment-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Update Mitigation Status",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"mitigated\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/risk-assessments/:id/mitigation-status",
+							"host": ["{{base_url}}"],
+							"path": ["api", "risk-assessments", ":id", "mitigation-status"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "assessment-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Field Guidance",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"field\": \"risk_level\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/risk-assessment/field-guidance",
+							"host": ["{{base_url}}"],
+							"path": ["api", "risk-assessment", "field-guidance"]
+						}
+					}
+				},
+				{
+					"name": "Get Guidance",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"context\": \"\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/risk-assessment/guidance",
+							"host": ["{{base_url}}"],
+							"path": ["api", "risk-assessment", "guidance"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Policies",
+			"item": [
+				{
+					"name": "Get Policies",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/policies",
+							"host": ["{{base_url}}"],
+							"path": ["api", "policies"]
+						}
+					}
+				},
+				{
+					"name": "Create Policy",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Policy Name\",\n  \"description\": \"Policy Description\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/policies",
+							"host": ["{{base_url}}"],
+							"path": ["api", "policies"]
+						}
+					}
+				},
+				{
+					"name": "Get Policy by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/policies/:id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "policies", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "policy-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Update Policy",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Updated Policy Name\",\n  \"description\": \"Updated Description\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/policies/:id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "policies", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "policy-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Delete Policy",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/policies/:id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "policies", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "policy-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Policy Requirements",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/policies/:id/requirements",
+							"host": ["{{base_url}}"],
+							"path": ["api", "policies", ":id", "requirements"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "policy-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Create Policy Requirement",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"requirement\": \"Requirement text\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/policies/:id/requirements",
+							"host": ["{{base_url}}"],
+							"path": ["api", "policies", ":id", "requirements"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "policy-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Update Policy Requirement",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"requirement\": \"Updated requirement text\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/policies/:id/requirements/:requirementId",
+							"host": ["{{base_url}}"],
+							"path": ["api", "policies", ":id", "requirements", ":requirementId"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "policy-id-here"
+								},
+								{
+									"key": "requirementId",
+									"value": "requirement-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Delete Policy Requirement",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/policies/:id/requirements/:requirementId",
+							"host": ["{{base_url}}"],
+							"path": ["api", "policies", ":id", "requirements", ":requirementId"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "policy-id-here"
+								},
+								{
+									"key": "requirementId",
+									"value": "requirement-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Analyze Policy Compliance",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"systemId\": \"system-id\",\n  \"policyId\": \"policy-id\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/policy-compliance/analyze",
+							"host": ["{{base_url}}"],
+							"path": ["api", "policy-compliance", "analyze"]
+						}
+					}
+				},
+				{
+					"name": "Analyze Policy Conflicts",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"systemId\": \"system-id\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/policy-compliance/conflicts",
+							"host": ["{{base_url}}"],
+							"path": ["api", "policy-compliance", "conflicts"]
+						}
+					}
+				},
+				{
+					"name": "Analyze Policy Gaps",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"systemId\": \"system-id\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/policy-compliance/gaps",
+							"host": ["{{base_url}}"],
+							"path": ["api", "policy-compliance", "gaps"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Compliance",
+			"item": [
+				{
+					"name": "Get Compliance",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/compliance",
+							"host": ["{{base_url}}"],
+							"path": ["api", "compliance"]
+						}
+					}
+				},
+				{
+					"name": "Post Compliance",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"compliance\": {}\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/compliance",
+							"host": ["{{base_url}}"],
+							"path": ["api", "compliance"]
+						}
+					}
+				},
+				{
+					"name": "Get Detailed Compliance",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/compliance/detailed",
+							"host": ["{{base_url}}"],
+							"path": ["api", "compliance", "detailed"]
+						}
+					}
+				},
+				{
+					"name": "Post Detailed Compliance",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"compliance\": {}\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/compliance/detailed",
+							"host": ["{{base_url}}"],
+							"path": ["api", "compliance", "detailed"]
+						}
+					}
+				},
+				{
+					"name": "Get Compliance by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/compliance/:id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "compliance", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "compliance-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get MAS Compliance",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/mas-compliance",
+							"host": ["{{base_url}}"],
+							"path": ["api", "mas-compliance"]
+						}
+					}
+				},
+				{
+					"name": "Post MAS Compliance",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"assessment\": {}\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/mas-compliance",
+							"host": ["{{base_url}}"],
+							"path": ["api", "mas-compliance"]
+						}
+					}
+				},
+				{
+					"name": "Get MAS Compliance by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/mas-compliance/:id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "mas-compliance", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "mas-compliance-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get UK Compliance",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/uk-compliance",
+							"host": ["{{base_url}}"],
+							"path": ["api", "uk-compliance"]
+						}
+					}
+				},
+				{
+					"name": "Post UK Compliance",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"assessment\": {}\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/uk-compliance",
+							"host": ["{{base_url}}"],
+							"path": ["api", "uk-compliance"]
+						}
+					}
+				},
+				{
+					"name": "Get UK Compliance by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/uk-compliance/:id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "uk-compliance", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "uk-compliance-id-here"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Discovery",
+			"item": [
+				{
+					"name": "Get Discovery",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/discovery",
+							"host": ["{{base_url}}"],
+							"path": ["api", "discovery"]
+						}
+					}
+				},
+				{
+					"name": "Post Discovery",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"discovery\": {}\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/discovery",
+							"host": ["{{base_url}}"],
+							"path": ["api", "discovery"]
+						}
+					}
+				},
+				{
+					"name": "Create Smart Assessment",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"discoveryId\": \"discovery-id\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/discovery/smart-assessment",
+							"host": ["{{base_url}}"],
+							"path": ["api", "discovery", "smart-assessment"]
+						}
+					}
+				},
+				{
+					"name": "Get Link Suggestions",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"discoveryId\": \"discovery-id\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/discovery/link-suggestions",
+							"host": ["{{base_url}}"],
+							"path": ["api", "discovery", "link-suggestions"]
+						}
+					}
+				},
+				{
+					"name": "Get Prioritization",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"discoveries\": []\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/discovery/prioritization",
+							"host": ["{{base_url}}"],
+							"path": ["api", "discovery", "prioritization"]
+						}
+					}
+				},
+				{
+					"name": "Link Discovered Asset",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"systemId\": \"system-id\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/discovery/:id/link",
+							"host": ["{{base_url}}"],
+							"path": ["api", "discovery", ":id", "link"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "discovery-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Mark as Shadow AI",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/discovery/:id/mark-shadow",
+							"host": ["{{base_url}}"],
+							"path": ["api", "discovery", ":id", "mark-shadow"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "discovery-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Resolve Discovered Asset",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/discovery/:id/resolve",
+							"host": ["{{base_url}}"],
+							"path": ["api", "discovery", ":id", "resolve"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "discovery-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Create System from Asset",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"systemName\": \"System Name\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/discovery/:id/create-system",
+							"host": ["{{base_url}}"],
+							"path": ["api", "discovery", ":id", "create-system"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "discovery-id-here"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Red Teaming",
+			"item": [
+				{
+					"name": "Get Red Teaming",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/red-teaming",
+							"host": ["{{base_url}}"],
+							"path": ["api", "red-teaming"]
+						}
+					}
+				},
+				{
+					"name": "Post Red Teaming",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"systemId\": \"system-id\",\n  \"tests\": []\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/red-teaming",
+							"host": ["{{base_url}}"],
+							"path": ["api", "red-teaming"]
+						}
+					}
+				},
+				{
+					"name": "Generate Targeted Red Teaming",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"systemId\": \"system-id\",\n  \"vulnerabilities\": []\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/red-teaming/targeted",
+							"host": ["{{base_url}}"],
+							"path": ["api", "red-teaming", "targeted"]
+						}
+					}
+				},
+				{
+					"name": "Execute Targeted Red Teaming",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"systemId\": \"system-id\",\n  \"tests\": []\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/red-teaming/execute-targeted",
+							"host": ["{{base_url}}"],
+							"path": ["api", "red-teaming", "execute-targeted"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Documentation",
+			"item": [
+				{
+					"name": "Get Documentation",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/documentation",
+							"host": ["{{base_url}}"],
+							"path": ["api", "documentation"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Dashboard",
+			"item": [
+				{
+					"name": "Get Dashboard Insights",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"orgId\": \"org-id\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/dashboard/insights",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dashboard", "insights"]
+						}
+					}
+				},
+				{
+					"name": "Get System Insights",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"systemId\": \"system-id\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/dashboard/system-insights",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dashboard", "system-insights"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Governance Tasks",
+			"item": [
+				{
+					"name": "Get Governance Suggestions",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"systemId\": \"system-id\",\n  \"context\": \"\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/governance-tasks/suggestions",
+							"host": ["{{base_url}}"],
+							"path": ["api", "governance-tasks", "suggestions"]
+						}
+					}
+				},
+				{
+					"name": "Analyze Completion Impact",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"taskId\": \"task-id\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/governance-tasks/completion-impact",
+							"host": ["{{base_url}}"],
+							"path": ["api", "governance-tasks", "completion-impact"]
+						}
+					}
+				},
+				{
+					"name": "Update Governance Task",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"completed\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/governance-tasks/:taskId",
+							"host": ["{{base_url}}"],
+							"path": ["api", "governance-tasks", ":taskId"],
+							"variable": [
+								{
+									"key": "taskId",
+									"value": "task-id-here"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Contextual Help",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"taskId\": \"task-id\",\n  \"question\": \"How do I complete this task?\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/governance-tasks/contextual-help",
+							"host": ["{{base_url}}"],
+							"path": ["api", "governance-tasks", "contextual-help"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "User",
+			"item": [
+				{
+					"name": "Get User Role",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/user/role",
+							"host": ["{{base_url}}"],
+							"path": ["api", "user", "role"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Evidence",
+			"item": [
+				{
+					"name": "Process Evidence",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{auth_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "files",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/process-evidence",
+							"host": ["{{base_url}}"],
+							"path": ["api", "process-evidence"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Regulatory Changes",
+			"item": [
+				{
+					"name": "Generate Action Plan",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"regulation\": \"\",\n  \"systems\": []\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/regulatory-changes/action-plan",
+							"host": ["{{base_url}}"],
+							"path": ["api", "regulatory-changes", "action-plan"]
+						}
+					}
+				},
+				{
+					"name": "Estimate Effort",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"actionPlan\": {}\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/regulatory-changes/effort-estimation",
+							"host": ["{{base_url}}"],
+							"path": ["api", "regulatory-changes", "effort-estimation"]
+						}
+					}
+				},
+				{
+					"name": "Analyze Impact",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"regulation\": \"\",\n  \"systems\": []\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/regulatory-changes/impact-analysis",
+							"host": ["{{base_url}}"],
+							"path": ["api", "regulatory-changes", "impact-analysis"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Cron Jobs",
+			"item": [
+				{
+					"name": "Periodic Risk Review",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/cron/periodic-risk-review",
+							"host": ["{{base_url}}"],
+							"path": ["api", "cron", "periodic-risk-review"]
+						}
+					}
+				},
+				{
+					"name": "Regenerate Documentation",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/cron/regenerate-documentation",
+							"host": ["{{base_url}}"],
+							"path": ["api", "cron", "regenerate-documentation"]
+						}
+					}
+				},
+				{
+					"name": "Regenerate Documentation (POST)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/cron/regenerate-documentation",
+							"host": ["{{base_url}}"],
+							"path": ["api", "cron", "regenerate-documentation"]
+						}
+					}
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:3001",
+			"type": "string"
+		},
+		{
+			"key": "auth_token",
+			"value": "your-supabase-jwt-token-here",
+			"type": "string"
+		}
+	]
+}
+
+
+
