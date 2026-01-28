@@ -285,124 +285,296 @@ export async function getSystemAnalysisContext(
     let assessments: any[] = [];
     let gaps: string[] = [];
 
-    try {
-      console.log(`[Context] Querying Organization System RAG for SYSTEM_ANALYSIS mode (org: ${userId}, system: ${systemId})`);
-      const userSystemContext = await getUserSystemContextString(
-        userMessage,
-        userId, // TEMPORARY: using userId as orgId during transition
-        5,
-        systemId // Filter by specific system
-      );
-
-      if (userSystemContext && 
-          userSystemContext !== 'No relevant system data found.' && 
-          userSystemContext !== 'No query provided.') {
-        
-        systemDescription = `**System Analysis (from your data):**\n\n${userSystemContext}`;
-      } else {
-        // Fallback to database query if RAG has no data
-        console.log(`[Context] No User System RAG data found, falling back to database`);
-        
-        // Detect regulation framework from page context (pathname)
-        const regulationFromPage = detectRegulationTypeFromPageContext(pageContext);
-        console.log(`[Context] Detected regulation from page context: ${regulationFromPage || 'none (will try all tables)'}`);
-        
-        const { data: systemData } = await supabase
-          .from('ai_system_registry')
-          .select('*')
-          .eq('system_id', systemId)
-          .single();
-
-        let complianceData: any = null;
-
-        // Query the correct compliance table based on page context
-        if (regulationFromPage === 'MAS') {
-          console.log(`[Context] Querying MAS compliance table for system ${systemId}`);
-          const { data: masData } = await supabase
-            .from('mas_ai_risk_assessments')
-            .select('*')
-            .eq('id', systemId)
-            .single();
-          
-          if (masData) {
-            console.log(`[Context] ✅ Found MAS assessment data for system ${masData.system_name}`);
-            complianceData = masData;
-            systemName = masData.system_name || systemData?.name || 'Unknown System';
-            systemDescription = masData.description || systemData?.description || 'No description available';
-            riskLevel = masData.overall_risk_level || 'Unknown';
-            complianceStatus = masData.overall_compliance_status || 'Unknown';
-            assessments = [masData];
-            
-            // Build MAS-specific context with pillar information
-            let masContext = `\n\n**MAS Compliance Framework - ${systemName}:**\n`;
-            masContext += `- Overall Risk Level: ${riskLevel}\n`;
-            masContext += `- Overall Compliance Status: ${complianceStatus}\n`;
-            masContext += `- Sector: ${masData.sector || 'Not specified'}\n`;
-            masContext += `- System Status: ${masData.system_status || 'Not specified'}\n`;
-            
-            // Extract gaps from relevant MAS pillars based on user question
-            const userMsgLower = userMessage.toLowerCase();
-            if (userMsgLower.includes('fairness')) {
-              const fairnessPillar = masData.fairness as any;
-              gaps = fairnessPillar?.gaps || [];
-              masContext += `\n**Fairness Pillar:**\n`;
-              masContext += `- Status: ${fairnessPillar?.status || 'Unknown'}\n`;
-              masContext += `- Score: ${fairnessPillar?.score || 0}/100\n`;
-              if (fairnessPillar?.gaps && fairnessPillar.gaps.length > 0) {
-                masContext += `- Gaps: ${fairnessPillar.gaps.join(', ')}\n`;
-              }
-            } else if (userMsgLower.includes('third') || userMsgLower.includes('vendor')) {
-              const thirdPartyPillar = masData.thirdParty as any;
-              gaps = thirdPartyPillar?.gaps || [];
-              masContext += `\n**Third-Party/Vendor Management Pillar:**\n`;
-              masContext += `- Status: ${thirdPartyPillar?.status || 'Unknown'}\n`;
-              masContext += `- Score: ${thirdPartyPillar?.score || 0}/100\n`;
-              if (thirdPartyPillar?.gaps && thirdPartyPillar.gaps.length > 0) {
-                masContext += `- Gaps: ${thirdPartyPillar.gaps.join(', ')}\n`;
-              }
-            }
-            
-            systemDescription += masContext;
-          } else {
-            console.log(`[Context] ⚠️ No MAS assessment found for system ${systemId}, using basic system data`);
-            systemName = systemData?.name || 'Unknown System';
-            systemDescription = systemData?.description || 'No description available';
-          }
-        } else if (regulationFromPage === 'UK') {
-          console.log(`[Context] Querying UK compliance table for system ${systemId}`);
-          const { data: ukData } = await supabase
-            .from('uk_ai_assessments')
-            .select('*')
-            .eq('id', systemId)
-            .single();
-          complianceData = ukData;
-          systemName = ukData?.system_name || systemData?.name || 'Unknown System';
-          systemDescription = ukData?.description || systemData?.description || 'No description available';
-          riskLevel = ukData?.risk_tier || 'Unknown';
-          complianceStatus = ukData?.compliance_status || 'Unknown';
-          assessments = ukData ? [ukData] : [];
-          gaps = ukData?.gaps || [];
-        } else {
-          // Default to EU or try all if unclear
-          console.log(`[Context] Querying EU compliance table for system ${systemId}`);
-          const { data: euData } = await supabase
-            .from('eu_ai_act_check_results')
-            .select('*')
-            .eq('id', systemId)
-            .single();
-          complianceData = euData;
-          systemName = euData?.system_name || systemData?.name || 'Unknown System';
-          systemDescription = euData?.description || systemData?.description || 'No description available';
-          riskLevel = euData?.risk_tier || 'Unknown';
-          complianceStatus = euData?.compliance_status || 'Unknown';
-          assessments = euData ? [euData] : [];
-          gaps = euData?.high_risk_obligations?.missing || [];
+    // Check if this is a compliance query or system attribute query - if so, fetch ALL compliance assessments directly from database
+    // System attribute queries include questions about governance policy type, framework, risk level, etc.
+    const isComplianceQuery = /(are we|am i|is (my|our)|compliance|compliant|comply|what.*compliance|what.*status|what are the|what is the|what.*in this system|what.*of this system)/i.test(userMessage);
+    
+    // For compliance queries, fetch directly from database (more accurate than RAG)
+    if (isComplianceQuery) {
+      console.log(`[Context] 🔍 Compliance query detected - fetching all available compliance assessments directly from database`);
+      
+      const { data: systemData } = await supabase
+        .from('ai_system_registry')
+        .select('*')
+        .eq('system_id', systemId)
+        .single();
+      
+      // Try to fetch EU, UK, and MAS assessments in parallel
+      const [euResult, ukResult, masResult] = await Promise.all([
+        supabase.from('eu_ai_act_check_results').select('*').eq('id', systemId).maybeSingle(),
+        supabase.from('uk_ai_assessments').select('*').eq('id', systemId).maybeSingle(),
+        supabase.from('mas_ai_risk_assessments').select('*').eq('id', systemId).maybeSingle()
+      ]);
+      
+      const euData = euResult.data;
+      const ukData = ukResult.data;
+      const masData = masResult.data;
+      
+      // Build comprehensive compliance summary
+      let complianceSummary = `\n\n**Compliance Status Summary for ${systemData?.name || 'System'}:**\n\n`;
+      const allAssessments: any[] = [];
+      const allGaps: string[] = [];
+      
+      if (euData) {
+        console.log(`[Context] ✅ Found EU assessment for system ${euData.system_name}`);
+        complianceSummary += `**EU AI Act:**\n`;
+        complianceSummary += `- Risk Tier: ${euData.risk_tier || 'Unknown'}\n`;
+        complianceSummary += `- Compliance Status: ${euData.compliance_status || 'Unknown'}\n`;
+        if (euData.high_risk_missing && Array.isArray(euData.high_risk_missing) && euData.high_risk_missing.length > 0) {
+          complianceSummary += `- Missing High-Risk Obligations: ${euData.high_risk_missing.join(', ')}\n`;
+          allGaps.push(...euData.high_risk_missing);
+        }
+        complianceSummary += `\n`;
+        allAssessments.push({ framework: 'EU', data: euData });
+        if (!systemName || systemName === 'Unknown System') {
+          systemName = euData.system_name || systemData?.name || 'Unknown System';
+        }
+        if (!complianceStatus || complianceStatus === 'Unknown') {
+          complianceStatus = euData.compliance_status || 'Unknown';
+        }
+        if (!riskLevel || riskLevel === 'Unknown') {
+          riskLevel = euData.risk_tier || 'Unknown';
         }
       }
-    } catch (userRagError) {
-      console.error('[Context] Error querying User System RAG:', userRagError);
-      systemDescription = 'Error retrieving system data. Please ensure the system exists and you have access.';
-      gaps.push('Unable to load system data');
+      
+      if (ukData) {
+        console.log(`[Context] ✅ Found UK assessment for system ${ukData.system_name}`);
+        complianceSummary += `**UK AI Act:**\n`;
+        complianceSummary += `- Risk Level: ${ukData.riskLevel || 'Unknown'}\n`;
+        complianceSummary += `- Overall Assessment: ${ukData.overallAssessment || 'Unknown'}\n`;
+        if (ukData.safetyAndSecurity?.missing && ukData.safetyAndSecurity.missing.length > 0) {
+          complianceSummary += `- Safety & Security Gaps: ${ukData.safetyAndSecurity.missing.join(', ')}\n`;
+          allGaps.push(...ukData.safetyAndSecurity.missing);
+        }
+        if (ukData.transparency?.missing && ukData.transparency.missing.length > 0) {
+          complianceSummary += `- Transparency Gaps: ${ukData.transparency.missing.join(', ')}\n`;
+          allGaps.push(...ukData.transparency.missing);
+        }
+        if (ukData.fairness?.missing && ukData.fairness.missing.length > 0) {
+          complianceSummary += `- Fairness Gaps: ${ukData.fairness.missing.join(', ')}\n`;
+          allGaps.push(...ukData.fairness.missing);
+        }
+        complianceSummary += `\n`;
+        allAssessments.push({ framework: 'UK', data: ukData });
+        if (!systemName || systemName === 'Unknown System') {
+          systemName = ukData.system_name || systemData?.name || 'Unknown System';
+        }
+        if (!complianceStatus || complianceStatus === 'Unknown') {
+          complianceStatus = ukData.overallAssessment || 'Unknown';
+        }
+        if (!riskLevel || riskLevel === 'Unknown') {
+          riskLevel = ukData.riskLevel || 'Unknown';
+        }
+      }
+      
+      if (masData) {
+        console.log(`[Context] ✅ Found MAS assessment for system ${masData.system_name}`);
+        complianceSummary += `**MAS Guidelines:**\n`;
+        complianceSummary += `- Overall Risk Level: ${masData.overall_risk_level || 'Unknown'}\n`;
+        complianceSummary += `- Overall Compliance Status: ${masData.overall_compliance_status || 'Unknown'}\n`;
+        
+        // Extract governance policy type and framework from raw_answers if question asks about them
+        const userMsgLower = userMessage.toLowerCase();
+        if (userMsgLower.includes('governance') && (userMsgLower.includes('policy type') || userMsgLower.includes('framework') || userMsgLower.includes('policy'))) {
+          const rawAnswers = masData.raw_answers as any;
+          if (rawAnswers) {
+            if (rawAnswers.governance_policy_type) {
+              complianceSummary += `- Governance Policy Type: ${rawAnswers.governance_policy_type}\n`;
+            }
+            if (rawAnswers.governance_framework) {
+              complianceSummary += `- Governance Framework: ${rawAnswers.governance_framework}\n`;
+            }
+            if (rawAnswers.governance_board_role) {
+              complianceSummary += `- Board Role: ${rawAnswers.governance_board_role}\n`;
+            }
+            if (rawAnswers.governance_senior_management) {
+              complianceSummary += `- Senior Management: ${rawAnswers.governance_senior_management}\n`;
+            }
+            if (rawAnswers.governance_policy_assigned) {
+              complianceSummary += `- Policy Assigned To: ${rawAnswers.governance_policy_assigned}\n`;
+            }
+          }
+        }
+        
+        // Extract gaps from all MAS pillars
+        const masPillars = ['governance', 'inventory', 'dataManagement', 'transparency', 'fairness', 
+                          'humanOversight', 'thirdParty', 'algoSelection', 'evaluationTesting', 
+                          'techCybersecurity', 'monitoringChange', 'capabilityCapacity'];
+        masPillars.forEach(pillar => {
+          const pillarData = masData[pillar] as any;
+          if (pillarData?.gaps && Array.isArray(pillarData.gaps) && pillarData.gaps.length > 0) {
+            complianceSummary += `- ${pillar} Gaps: ${pillarData.gaps.join(', ')}\n`;
+            allGaps.push(...pillarData.gaps);
+          }
+        });
+        complianceSummary += `\n`;
+        allAssessments.push({ framework: 'MAS', data: masData });
+        if (!systemName || systemName === 'Unknown System') {
+          systemName = masData.system_name || systemData?.name || 'Unknown System';
+        }
+        if (!complianceStatus || complianceStatus === 'Unknown') {
+          complianceStatus = masData.overall_compliance_status || 'Unknown';
+        }
+        if (!riskLevel || riskLevel === 'Unknown') {
+          riskLevel = masData.overall_risk_level || 'Unknown';
+        }
+      }
+      
+      if (allAssessments.length === 0) {
+        complianceSummary += `⚠️ No compliance assessments found for this system. Please complete a compliance assessment first.\n`;
+        console.log(`[Context] ⚠️ No compliance assessments found for system ${systemId}`);
+      } else {
+        console.log(`[Context] ✅ Found ${allAssessments.length} compliance assessment(s): ${allAssessments.map(a => a.framework).join(', ')}`);
+      }
+      
+      systemDescription = (systemData?.description || 'No description available') + complianceSummary;
+      assessments = allAssessments;
+      gaps = [...new Set(allGaps)]; // Remove duplicates
+      
+    } else {
+      // Non-compliance query - use RAG first, then fallback to database
+      try {
+        console.log(`[Context] Querying Organization System RAG for SYSTEM_ANALYSIS mode (org: ${userId}, system: ${systemId})`);
+        const userSystemContext = await getUserSystemContextString(
+          userMessage,
+          userId, // TEMPORARY: using userId as orgId during transition
+          5,
+          systemId // Filter by specific system
+        );
+
+        if (userSystemContext && 
+            userSystemContext !== 'No relevant system data found.' && 
+            userSystemContext !== 'No query provided.') {
+          
+          systemDescription = `**System Analysis (from your data):**\n\n${userSystemContext}`;
+        } else {
+          // Fallback to database query if RAG has no data
+          console.log(`[Context] No User System RAG data found, falling back to database`);
+          
+          // Detect regulation framework from page context (pathname)
+          const regulationFromPage = detectRegulationTypeFromPageContext(pageContext);
+          console.log(`[Context] Detected regulation from page context: ${regulationFromPage || 'none (will try all tables)'}`);
+          
+          const { data: systemData } = await supabase
+            .from('ai_system_registry')
+            .select('*')
+            .eq('system_id', systemId)
+            .single();
+
+          let complianceData: any = null;
+
+          // Non-compliance query - use original logic (query based on page context)
+          // Query the correct compliance table based on page context
+          if (regulationFromPage === 'MAS') {
+            console.log(`[Context] Querying MAS compliance table for system ${systemId}`);
+            const { data: masData } = await supabase
+              .from('mas_ai_risk_assessments')
+              .select('*')
+              .eq('id', systemId)
+              .single();
+            
+            if (masData) {
+              console.log(`[Context] ✅ Found MAS assessment data for system ${masData.system_name}`);
+              complianceData = masData;
+              systemName = masData.system_name || systemData?.name || 'Unknown System';
+              systemDescription = masData.description || systemData?.description || 'No description available';
+              riskLevel = masData.overall_risk_level || 'Unknown';
+              complianceStatus = masData.overall_compliance_status || 'Unknown';
+              assessments = [masData];
+              
+              // Build MAS-specific context with pillar information
+              let masContext = `\n\n**MAS Compliance Framework - ${systemName}:**\n`;
+              masContext += `- Overall Risk Level: ${riskLevel}\n`;
+              masContext += `- Overall Compliance Status: ${complianceStatus}\n`;
+              masContext += `- Sector: ${masData.sector || 'Not specified'}\n`;
+              masContext += `- System Status: ${masData.system_status || 'Not specified'}\n`;
+              
+              // Extract governance policy type and framework from raw_answers if question asks about them
+              const userMsgLower = userMessage.toLowerCase();
+              if (userMsgLower.includes('governance') && (userMsgLower.includes('policy type') || userMsgLower.includes('framework') || userMsgLower.includes('policy'))) {
+                const rawAnswers = masData.raw_answers as any;
+                if (rawAnswers) {
+                  if (rawAnswers.governance_policy_type) {
+                    masContext += `\n**Governance Policy Type:** ${rawAnswers.governance_policy_type}\n`;
+                  }
+                  if (rawAnswers.governance_framework) {
+                    masContext += `\n**Governance Framework:** ${rawAnswers.governance_framework}\n`;
+                  }
+                  if (rawAnswers.governance_board_role) {
+                    masContext += `\n**Board Role:** ${rawAnswers.governance_board_role}\n`;
+                  }
+                  if (rawAnswers.governance_senior_management) {
+                    masContext += `\n**Senior Management:** ${rawAnswers.governance_senior_management}\n`;
+                  }
+                  if (rawAnswers.governance_policy_assigned) {
+                    masContext += `\n**Policy Assigned To:** ${rawAnswers.governance_policy_assigned}\n`;
+                  }
+                }
+              }
+              
+              // Extract gaps from relevant MAS pillars based on user question
+              if (userMsgLower.includes('fairness')) {
+                const fairnessPillar = masData.fairness as any;
+                gaps = fairnessPillar?.gaps || [];
+                masContext += `\n**Fairness Pillar:**\n`;
+                masContext += `- Status: ${fairnessPillar?.status || 'Unknown'}\n`;
+                masContext += `- Score: ${fairnessPillar?.score || 0}/100\n`;
+                if (fairnessPillar?.gaps && fairnessPillar.gaps.length > 0) {
+                  masContext += `- Gaps: ${fairnessPillar.gaps.join(', ')}\n`;
+                }
+              } else if (userMsgLower.includes('third') || userMsgLower.includes('vendor')) {
+                const thirdPartyPillar = masData.thirdParty as any;
+                gaps = thirdPartyPillar?.gaps || [];
+                masContext += `\n**Third-Party/Vendor Management Pillar:**\n`;
+                masContext += `- Status: ${thirdPartyPillar?.status || 'Unknown'}\n`;
+                masContext += `- Score: ${thirdPartyPillar?.score || 0}/100\n`;
+                if (thirdPartyPillar?.gaps && thirdPartyPillar.gaps.length > 0) {
+                  masContext += `- Gaps: ${thirdPartyPillar.gaps.join(', ')}\n`;
+                }
+              }
+              
+              systemDescription += masContext;
+            } else {
+              console.log(`[Context] ⚠️ No MAS assessment found for system ${systemId}, using basic system data`);
+              systemName = systemData?.name || 'Unknown System';
+              systemDescription = systemData?.description || 'No description available';
+            }
+          } else if (regulationFromPage === 'UK') {
+            console.log(`[Context] Querying UK compliance table for system ${systemId}`);
+            const { data: ukData } = await supabase
+              .from('uk_ai_assessments')
+              .select('*')
+              .eq('id', systemId)
+              .single();
+            complianceData = ukData;
+            systemName = ukData?.system_name || systemData?.name || 'Unknown System';
+            systemDescription = ukData?.description || systemData?.description || 'No description available';
+            riskLevel = ukData?.risk_tier || 'Unknown';
+            complianceStatus = ukData?.compliance_status || 'Unknown';
+            assessments = ukData ? [ukData] : [];
+            gaps = ukData?.gaps || [];
+          } else {
+            // Default to EU or try all if unclear
+            console.log(`[Context] Querying EU compliance table for system ${systemId}`);
+            const { data: euData } = await supabase
+              .from('eu_ai_act_check_results')
+              .select('*')
+              .eq('id', systemId)
+              .single();
+            complianceData = euData;
+            systemName = euData?.system_name || systemData?.name || 'Unknown System';
+            systemDescription = euData?.description || systemData?.description || 'No description available';
+            riskLevel = euData?.risk_tier || 'Unknown';
+            complianceStatus = euData?.compliance_status || 'Unknown';
+            assessments = euData ? [euData] : [];
+            gaps = euData?.high_risk_obligations?.missing || [];
+          }
+        }
+      } catch (userRagError) {
+        console.error('[Context] Error querying User System RAG:', userRagError);
+        systemDescription = 'Error retrieving system data. Please ensure the system exists and you have access.';
+        gaps.push('Unable to load system data');
+      }
     }
 
     // SUPPORTING SOURCE: Regulation RAG (enrichment only)

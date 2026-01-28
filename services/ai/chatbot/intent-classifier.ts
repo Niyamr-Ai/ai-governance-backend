@@ -46,11 +46,22 @@ export async function classifyIntent(
 
 Your task is to classify the user's message into one or more modes (in priority order):
 
-1. EXPLAIN - User wants to understand regulations, concepts, or how the platform works. Educational questions like "What is the EU AI Act?", "How does risk assessment work?", "Explain transparency requirements".
+1. EXPLAIN - User wants to understand regulations, concepts, or how the platform works. Educational questions like "What is the EU AI Act?", "How does risk assessment work?", "Explain transparency requirements". Questions about general concepts WITHOUT referring to "this system", "my system", "our system", or specific system attributes.
 
-2. SYSTEM_ANALYSIS - User wants to analyze their specific AI system against regulations. Questions like "Is my system compliant?", "What are the risks for this system?", "How does my system compare to regulations?". Requires system data.
+2. SYSTEM_ANALYSIS - User wants to analyze their specific AI system against regulations OR asks about specific attributes/properties of their system. Questions like:
+   - "Is my system compliant?", "Are we compliant with EU AI Act?", "What are the risks for this system?"
+   - "What are the [attribute] in this system?" (e.g., "What are the governance policy type and governance framework in this system?")
+   - "What is the [property] of this system?" (e.g., "What is the risk level of this system?")
+   - "How does my system compare to regulations?", "Do we meet transparency requirements?", "What's our compliance status?"
+   - Questions asking about system-specific data, attributes, properties, or configurations
+   Requires system data. COMPLIANCE QUESTIONS and SYSTEM ATTRIBUTE QUESTIONS should be classified as SYSTEM_ANALYSIS.
 
 3. ACTION - User wants actionable next steps or recommendations within the platform. Questions like "What should I do next?", "How do I complete this task?", "What are my pending actions?". Requires platform workflows.
+
+CRITICAL RULES:
+- If the question contains "this system", "my system", "our system", or asks about specific system attributes/properties, classify as SYSTEM_ANALYSIS
+- If the question asks "What are the [X] in this system?" or "What is the [X] of this system?", classify as SYSTEM_ANALYSIS
+- If the question is purely educational about regulations/concepts without system reference, classify as EXPLAIN
 
 Current page context:
 ${contextDescription}

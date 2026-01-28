@@ -50,9 +50,55 @@ export function buildExplainPrompt(
   context: ExplainContext,
   conversationHistory?: string
 ): string {
+  // Detect if this is a summary request
+  const isSummaryRequest = /(summary|summarize|what.*discussed|what.*talked|what.*said|recap|recap.*discussion)/i.test(userMessage);
+  
   const historySection = conversationHistory 
     ? `\n\n${conversationHistory}\n\nIMPORTANT: Use the previous conversation context to provide continuity and avoid repeating information already discussed. Reference previous questions or answers when relevant.`
     : '';
+
+  // Special handling for summary requests
+  if (isSummaryRequest && conversationHistory) {
+    return `${BASE_SAFETY_PROMPT}
+
+MODE: EXPLAIN - SUMMARY REQUEST
+Purpose: Provide a factual, specific summary of previous conversations ONLY. Do NOT add educational content or platform information.
+
+${historySection}
+
+User Question: "${userMessage}"
+
+CRITICAL INSTRUCTIONS FOR SUMMARY:
+- ONLY summarize what was actually discussed in the previous conversations above
+- Be FACTUAL and SPECIFIC - state what was said, not general explanations
+- Do NOT add generic educational content about regulations, frameworks, or concepts
+- Do NOT explain what governance policies or frameworks are in general
+- Do NOT include platform features or marketing information
+- Do NOT add information that wasn't in the conversation history
+- Focus on: system names, compliance statuses, specific gaps, governance policy types/frameworks that were mentioned, risk levels, etc.
+- If a system was discussed, mention the actual system name and its specific details
+- If governance policy type/framework was discussed, state what was said about that specific system
+- Keep it concise and factual - this is a summary, not an educational article
+
+Example of GOOD summary:
+"Here's a summary of our previous discussions:
+
+1. **Compliance with MAS AI Guidelines:**
+   - CreditScore AI System is Partially Compliant
+   - [List specific gaps that were mentioned]
+
+2. **Governance Policy Type and Framework:**
+   - Policy Type: AI Risk Governance Policy (Version 2.1)
+   - Frameworks: MAS FEAT Principles, ISO/IEC 23053:2022, NIST AI RMF 1.0, COSO Enterprise Risk Management Framework"
+
+Example of BAD summary (DO NOT DO THIS):
+- Explaining what governance policies are in general
+- Explaining what frameworks mean
+- Adding platform feature descriptions
+- Adding educational content not in the conversation
+
+Format your response as a clear, factual summary. Use bullet points or numbered lists for different topics discussed.`;
+  }
 
   return `${BASE_SAFETY_PROMPT}
 
@@ -117,6 +163,31 @@ System Information:
     ? `\n\n${conversationHistory}\n\nIMPORTANT: Use the previous conversation context to provide continuity. If the user is asking follow-up questions about a previously discussed system or report, reference that context. Answer questions about specific reports or assessments that were mentioned earlier.`
     : '';
 
+  // Detect if this is a compliance question
+  const isComplianceQuestion = /(are we|am i|is (my|our)|compliance|compliant|comply|do we meet|what.*compliance)/i.test(userMessage);
+  
+  const complianceInstructions = isComplianceQuestion ? `
+CRITICAL: This is a compliance status question. Provide a DIRECT, CLEAR answer first, then supporting details.
+
+Answer Format for Compliance Questions:
+1. **Direct Answer First**: Start with a clear yes/no/partial answer (e.g., "Based on available data, your system appears to be [Compliant/Partially Compliant/Non-Compliant] with [regulation].")
+2. **Supporting Evidence**: Provide specific compliance status, risk levels, and identified gaps
+3. **Gaps Summary**: List any missing requirements or controls
+4. **Confidence Level**: Clearly state the confidence level of your assessment
+
+Example Response Structure:
+"Based on the available compliance assessments, your system [systemName] is [Compliant/Partially Compliant/Non-Compliant] with [regulation].
+
+**Compliance Status:**
+- Overall Status: [status]
+- Risk Level: [level]
+- Missing Requirements: [list gaps]
+
+**Confidence Level:** [High/Medium/Low] - [explanation]
+
+[Additional context and recommendations]"
+` : '';
+
   return `${BASE_SAFETY_PROMPT}
 
 MODE: SYSTEM_ANALYSIS
@@ -132,8 +203,10 @@ ${historySection}
 
 User Question: "${userMessage}"
 
+${complianceInstructions}
+
 Instructions:
-- Analyze the system based on available data
+- ${isComplianceQuestion ? 'For compliance questions, provide a DIRECT answer first, then supporting details.' : 'Analyze the system based on available data'}
 - Be evidence-based and cautious in conclusions
 - Clearly state all assumptions
 - Explicitly mention missing data or limitations
@@ -151,7 +224,7 @@ ${conversationHistory ? '- If the user asks about a specific report or assessmen
   - Medium confidence: partial data available
   - Low confidence: critical information missing
 
-Format your response as clear, structured analysis. Use sections for different aspects (risk, compliance, gaps, etc.).`;
+Format your response as clear, structured analysis. ${isComplianceQuestion ? 'Start with a direct answer, then provide supporting details.' : 'Use sections for different aspects (risk, compliance, gaps, etc.).'}`;
 }
 
 /**
