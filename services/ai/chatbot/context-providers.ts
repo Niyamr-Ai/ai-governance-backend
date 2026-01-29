@@ -261,10 +261,13 @@ export async function getSystemAnalysisContext(
     };
   }
 
-  if (!pageContext.systemId) {
+  // Handle dashboard-level queries (organization-wide, no systemId)
+  const isDashboardQuery = pageContext.pageType === 'dashboard' && !pageContext.systemId;
+  
+  if (!pageContext.systemId && !isDashboardQuery) {
     return {
       systemName: 'Unknown',
-      systemDescription: 'No system ID provided in context',
+      systemDescription: 'No system ID provided in context. For dashboard queries, ensure pageType is "dashboard".',
       riskLevel: 'Unknown',
       complianceStatus: 'Unknown',
       assessments: [],
@@ -273,9 +276,212 @@ export async function getSystemAnalysisContext(
     };
   }
 
+  // For dashboard queries, fetch all systems for the organization
+  if (isDashboardQuery) {
+    console.log(`[Context] 📊 Dashboard query detected - fetching all systems for organization ${userId}`);
+    try {
+      const supabase = supabaseAdmin;
+      
+      // Fetch all systems across all compliance frameworks for this user's organization
+      console.log(`[Context] 🔍 Fetching systems for org_id/user_id: ${userId}`);
+      
+      // Try org_id first, fallback to user_id if org_id returns no results (for backwards compatibility)
+      // NOTE: Column names must match database schema:
+      // UK: risk_level, overall_assessment (snake_case)
+      // MAS: overall_risk_level, overall_compliance_status (snake_case)
+      const [euSystems, ukSystemsByOrg, masSystemsByOrg] = await Promise.all([
+        supabase.from('eu_ai_act_check_results').select('id, system_name, risk_tier, compliance_status').eq('org_id', userId),
+        supabase.from('uk_ai_assessments').select('id, system_name, risk_level, overall_assessment').eq('org_id', userId),
+        supabase.from('mas_ai_risk_assessments').select('id, system_name, overall_risk_level, overall_compliance_status').eq('org_id', userId)
+      ]);
+
+      // If org_id query returned no results, try user_id as fallback (for backwards compatibility)
+      let ukSystems = ukSystemsByOrg;
+      let masSystems = masSystemsByOrg;
+      
+      if (!ukSystemsByOrg.data || ukSystemsByOrg.data.length === 0) {
+        console.log(`[Context] ⚠️ UK: No systems found with org_id, trying user_id fallback...`);
+        const ukByUserId = await supabase.from('uk_ai_assessments').select('id, system_name, risk_level, overall_assessment').eq('user_id', userId);
+        if (ukByUserId.data && ukByUserId.data.length > 0) {
+          console.log(`[Context] ✅ UK: Found ${ukByUserId.data.length} systems using user_id`);
+          ukSystems = ukByUserId;
+        }
+      }
+      
+      if (!masSystemsByOrg.data || masSystemsByOrg.data.length === 0) {
+        console.log(`[Context] ⚠️ MAS: No systems found with org_id, trying user_id fallback...`);
+        const masByUserId = await supabase.from('mas_ai_risk_assessments').select('id, system_name, overall_risk_level, overall_compliance_status').eq('user_id', userId);
+        if (masByUserId.data && masByUserId.data.length > 0) {
+          console.log(`[Context] ✅ MAS: Found ${masByUserId.data.length} systems using user_id`);
+          masSystems = masByUserId;
+        }
+      }
+
+      // Log query results
+      console.log(`[Context] 📊 Query Results:`);
+      console.log(`[Context]    EU AI Act: ${euSystems.data?.length || 0} systems (error: ${euSystems.error ? euSystems.error.message : 'none'})`);
+      console.log(`[Context]    UK AI Act: ${ukSystems.data?.length || 0} systems (error: ${ukSystems.error ? ukSystems.error.message : 'none'})`);
+      console.log(`[Context]    MAS: ${masSystems.data?.length || 0} systems (error: ${masSystems.error ? masSystems.error.message : 'none'})`);
+      
+      if (euSystems.error) {
+        console.error(`[Context] ❌ EU query error:`, euSystems.error);
+      }
+      if (ukSystems.error) {
+        console.error(`[Context] ❌ UK query error:`, ukSystems.error);
+      }
+      if (masSystems.error) {
+        console.error(`[Context] ❌ MAS query error:`, masSystems.error);
+      }
+
+      const allSystems: any[] = [];
+      const systemMap = new Map<string, any>();
+
+      // Process EU systems
+      if (euSystems.data) {
+        euSystems.data.forEach((sys: any) => {
+          if (!systemMap.has(sys.id)) {
+            systemMap.set(sys.id, {
+              id: sys.id,
+              name: sys.system_name,
+              frameworks: [],
+              riskLevels: [],
+              complianceStatuses: []
+            });
+          }
+          const system = systemMap.get(sys.id);
+          system.frameworks.push('EU AI Act');
+          if (sys.risk_tier) system.riskLevels.push(`EU: ${sys.risk_tier}`);
+          if (sys.compliance_status) system.complianceStatuses.push(`EU: ${sys.compliance_status}`);
+        });
+      }
+
+      // Process UK systems
+      if (ukSystems.data) {
+        ukSystems.data.forEach((sys: any) => {
+          if (!systemMap.has(sys.id)) {
+            systemMap.set(sys.id, {
+              id: sys.id,
+              name: sys.system_name,
+              frameworks: [],
+              riskLevels: [],
+              complianceStatuses: []
+            });
+          }
+          const system = systemMap.get(sys.id);
+          system.frameworks.push('UK AI Act');
+          if (sys.risk_level) system.riskLevels.push(`UK: ${sys.risk_level}`);
+          if (sys.overall_assessment) system.complianceStatuses.push(`UK: ${sys.overall_assessment}`);
+        });
+      }
+
+      // Process MAS systems
+      if (masSystems.data) {
+        masSystems.data.forEach((sys: any) => {
+          if (!systemMap.has(sys.id)) {
+            systemMap.set(sys.id, {
+              id: sys.id,
+              name: sys.system_name,
+              frameworks: [],
+              riskLevels: [],
+              complianceStatuses: []
+            });
+          }
+          const system = systemMap.get(sys.id);
+          system.frameworks.push('MAS');
+          if (sys.overall_risk_level) system.riskLevels.push(`MAS: ${sys.overall_risk_level}`);
+          if (sys.overall_compliance_status) system.complianceStatuses.push(`MAS: ${sys.overall_compliance_status}`);
+        });
+      }
+
+      allSystems.push(...Array.from(systemMap.values()));
+
+      console.log(`[Context] ✅ Aggregated ${allSystems.length} unique systems across all regulations`);
+      if (allSystems.length > 0) {
+        console.log(`[Context]    Systems breakdown: ${allSystems.map(s => `${s.name} (${s.frameworks.join(', ')})`).join(', ')}`);
+      }
+
+      // Calculate overall statistics
+      const totalSystems = allSystems.length;
+      const compliantCount = allSystems.filter(s => 
+        s.complianceStatuses.some((status: string) => 
+          status.toLowerCase().includes('compliant') && !status.toLowerCase().includes('non') && !status.toLowerCase().includes('partial')
+        )
+      ).length;
+      const nonCompliantCount = allSystems.filter(s => 
+        s.complianceStatuses.some((status: string) => 
+          status.toLowerCase().includes('non-compliant') || status.toLowerCase().includes('non compliant')
+        )
+      ).length;
+      const partiallyCompliantCount = totalSystems - compliantCount - nonCompliantCount;
+
+      // Count by risk level
+      const highRiskCount = allSystems.filter(s => 
+        s.riskLevels.some((risk: string) => risk.toLowerCase().includes('high'))
+      ).length;
+      const mediumRiskCount = allSystems.filter(s => 
+        s.riskLevels.some((risk: string) => risk.toLowerCase().includes('medium'))
+      ).length;
+      const lowRiskCount = allSystems.filter(s => 
+        s.riskLevels.some((risk: string) => risk.toLowerCase().includes('low'))
+      ).length;
+
+      // Calculate regulation-specific statistics
+      const euSystemsList = allSystems.filter(s => s.frameworks.includes('EU AI Act'));
+      const ukSystemsList = allSystems.filter(s => s.frameworks.includes('UK AI Act'));
+      const masSystemsList = allSystems.filter(s => s.frameworks.includes('MAS'));
+      
+      // Build comprehensive dashboard summary with regulation breakdown
+      const dashboardSummary = `
+**Organization Overview (ALL Regulations):**
+- Total AI Systems: ${totalSystems}
+- Compliant Systems: ${compliantCount}
+- Partially Compliant: ${partiallyCompliantCount}
+- Non-Compliant Systems: ${nonCompliantCount}
+
+**Risk Distribution (Across All Regulations):**
+- High Risk: ${highRiskCount}
+- Medium Risk: ${mediumRiskCount}
+- Low Risk: ${lowRiskCount}
+
+**Regulation Coverage:**
+- EU AI Act Systems: ${euSystemsList.length}
+- UK AI Act Systems: ${ukSystemsList.length}
+- MAS Systems: ${masSystemsList.length}
+
+**Systems List (All Regulations):**
+${allSystems.length > 0 ? allSystems.map(s => {
+  const complianceStatus = s.complianceStatuses.length > 0 ? s.complianceStatuses[0] : 'Unknown';
+  const riskLevel = s.riskLevels.length > 0 ? s.riskLevels[0] : 'Unknown';
+  return `- ${s.name} (${s.frameworks.join(', ')}) - Status: ${complianceStatus}, Risk: ${riskLevel}`;
+}).join('\n') : 'No systems found'}
+      `.trim();
+
+      return {
+        systemName: 'Organization Dashboard',
+        systemDescription: dashboardSummary,
+        riskLevel: highRiskCount > 0 ? 'High' : mediumRiskCount > 0 ? 'Medium' : 'Low',
+        complianceStatus: compliantCount === totalSystems ? 'Compliant' : nonCompliantCount > 0 ? 'Non-Compliant' : 'Partially Compliant',
+        assessments: allSystems,
+        gaps: [],
+        confidenceLevel: totalSystems > 0 ? 'high' : 'low'
+      };
+    } catch (error: any) {
+      console.error(`[Context] ❌ Error fetching dashboard systems:`, error);
+      return {
+        systemName: 'Error',
+        systemDescription: `Error fetching organization systems: ${error.message}`,
+        riskLevel: 'Unknown',
+        complianceStatus: 'Unknown',
+        assessments: [],
+        gaps: ['Failed to fetch systems data'],
+        confidenceLevel: 'low'
+      };
+    }
+  }
+
   try {
     const supabase = supabaseAdmin;
-    const systemId = pageContext.systemId;
+    const systemId = pageContext.systemId!;
 
     // PRIMARY SOURCE: User System RAG (tenant-isolated)
     let systemDescription = 'No system data available';

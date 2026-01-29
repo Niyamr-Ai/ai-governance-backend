@@ -144,33 +144,47 @@ export async function chatHandler(req: Request, res: Response) {
     const sessionIdToUse = sessionId || 'default';
     const systemIdForHistory = pageContext?.systemId;
     
-    // Step 0.5: Get context first to calculate token budget accurately
-    // (We'll recalculate after getting context, but for now use a conservative estimate)
+    // Calculate user message tokens (needed for token budget calculations)
     const userMessageTokens = estimateTokens(message);
-    const estimatedBasePromptTokens = 2000; // Conservative estimate for base prompt
-    const historyTokenBudget = calculateHistoryTokenBudget('gpt-4o', estimatedBasePromptTokens, userMessageTokens);
     
-    console.log(`📊 [CHATBOT] Token budget calculation:`);
-    console.log(`   User message: ~${userMessageTokens} tokens`);
-    console.log(`   Estimated base prompt: ~${estimatedBasePromptTokens} tokens`);
-    console.log(`   Available for history: ~${historyTokenBudget} tokens`);
+    // Detect if this is a dashboard query asking for fresh data (doesn't need conversation history)
+    // These queries ask for current state, not follow-up questions
+    const isDashboardFreshDataQuery = pageContext?.pageType === 'dashboard' && !pageContext?.systemId && 
+      /^(how many|what.*total|show me|list|which systems|what.*compliance status|what.*overall)/i.test(message.trim());
     
-    // Pass user message to enable semantic search when needed
-    const conversationHistoryText = await getFormattedChatHistory(
-      orgId,
-      sessionIdToUse,
-      systemIdForHistory,
-      3, // Last 3 messages
-      message, // User query for semantic search detection
-      historyTokenBudget // Token budget for truncation
-    );
+    let conversationHistoryText = '';
     
-    if (conversationHistoryText) {
-      const historyTokens = estimateTokens(conversationHistoryText);
-      console.log(`✅ [CHATBOT] Retrieved conversation history (${historyTokens} tokens)`);
-      console.log(`📖 [CHATBOT] History preview: ${conversationHistoryText.substring(0, 200)}...`);
+    if (!isDashboardFreshDataQuery) {
+      // Step 0.5: Get context first to calculate token budget accurately
+      // (We'll recalculate after getting context, but for now use a conservative estimate)
+      const estimatedBasePromptTokens = 2000; // Conservative estimate for base prompt
+      const historyTokenBudget = calculateHistoryTokenBudget('gpt-4o', estimatedBasePromptTokens, userMessageTokens);
+      
+      console.log(`📊 [CHATBOT] Token budget calculation:`);
+      console.log(`   User message: ~${userMessageTokens} tokens`);
+      console.log(`   Estimated base prompt: ~${estimatedBasePromptTokens} tokens`);
+      console.log(`   Available for history: ~${historyTokenBudget} tokens`);
+      
+      // Pass user message to enable semantic search when needed
+      conversationHistoryText = await getFormattedChatHistory(
+        orgId,
+        sessionIdToUse,
+        systemIdForHistory,
+        3, // Last 3 messages
+        message, // User query for semantic search detection
+        historyTokenBudget // Token budget for truncation
+      );
+      
+      if (conversationHistoryText) {
+        const historyTokens = estimateTokens(conversationHistoryText);
+        console.log(`✅ [CHATBOT] Retrieved conversation history (${historyTokens} tokens)`);
+        console.log(`📖 [CHATBOT] History preview: ${conversationHistoryText.substring(0, 200)}...`);
+      } else {
+        console.log(`ℹ️  [CHATBOT] No previous conversation history found (this is a new conversation)`);
+      }
     } else {
-      console.log(`ℹ️  [CHATBOT] No previous conversation history found (this is a new conversation)`);
+      console.log(`ℹ️  [CHATBOT] Dashboard fresh data query detected - skipping conversation history to avoid bias`);
+      console.log(`   Query type: Fresh data request (current state, not follow-up)`);
     }
 
     // Step 1: Classify intent
@@ -188,7 +202,7 @@ export async function chatHandler(req: Request, res: Response) {
     if (primaryMode === 'SYSTEM_ANALYSIS' || primaryMode === 'ACTION') {
       console.log(`🔒 [CHATBOT] Enforcing tenant isolation for ${primaryMode} mode...`);
       try {
-        await enforceTenantIsolation(userId, pageContext.systemId, primaryMode);
+        await enforceTenantIsolation(userId, pageContext.systemId, primaryMode, pageContext);
         console.log(`✅ [CHATBOT] Tenant isolation verified`);
       } catch (error: any) {
         console.error(`❌ [CHATBOT] Tenant isolation failed: ${error.message}`);

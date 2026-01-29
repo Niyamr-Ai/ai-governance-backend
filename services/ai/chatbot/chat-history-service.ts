@@ -311,10 +311,15 @@ export async function getChatHistory(
       // On dashboard/general page: Get most recent GENERAL conversations only
       // Exclude system-specific conversations to avoid mixing contexts
       // When asking general questions, we don't want system-specific context
-      console.log(`[CHAT HISTORY] 🔍 Dashboard detected, fetching ONLY general conversations (excluding system-specific)...`);
+      // IMPORTANT: Only include conversations from the last 24 hours to avoid bias from old conversations
+      console.log(`[CHAT HISTORY] 🔍 Dashboard detected, fetching ONLY recent general conversations (excluding system-specific and old conversations)...`);
+      
+      const twentyFourHoursAgo = new Date();
+      twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
       
       const generalQuery = query
         .is('system_id', null) // Only get conversations without system_id
+        .gte('created_at', twentyFourHoursAgo.toISOString()) // Only include conversations from last 24 hours
         .limit(limit);
       
       const { data, error } = await generalQuery;
@@ -327,9 +332,9 @@ export async function getChatHistory(
       history = (data || []) as ChatHistoryEntry[];
       
       if (history.length === 0) {
-        console.log(`[CHAT HISTORY] ℹ️ No general conversation history found (this is a new general conversation)`);
+        console.log(`[CHAT HISTORY] ℹ️ No recent general conversation history found (this is a new general conversation or no conversations in last 24 hours)`);
       } else {
-        console.log(`[CHAT HISTORY] ✅ Retrieved ${history.length} general conversation(s) (system-specific conversations excluded)`);
+        console.log(`[CHAT HISTORY] ✅ Retrieved ${history.length} recent general conversation(s) (system-specific and old conversations excluded)`);
       }
     }
 

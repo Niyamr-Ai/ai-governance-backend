@@ -160,7 +160,7 @@ System Information:
     : '';
 
   const historySection = conversationHistory 
-    ? `\n\n${conversationHistory}\n\nIMPORTANT: Use the previous conversation context to provide continuity. If the user is asking follow-up questions about a previously discussed system or report, reference that context. Answer questions about specific reports or assessments that were mentioned earlier.`
+    ? `\n\n${conversationHistory}\n\nIMPORTANT: Use the previous conversation context ONLY if directly relevant to the current question. Do NOT let old conversations bias your response towards a specific regulation (e.g., EU AI Act). If the user is asking about ALL systems or overall compliance, focus on ALL regulations (EU, UK, MAS), not just what was discussed previously.`
     : '';
 
   // Detect if this is a compliance question
@@ -188,10 +188,34 @@ Example Response Structure:
 [Additional context and recommendations]"
 ` : '';
 
+  // Detect if this is a dashboard-level query (organization-wide, not single system)
+  const isDashboardQuery = context.systemName === 'Organization Dashboard' || context.systemName === 'Error';
+  
+  const dashboardInstructions = isDashboardQuery ? `
+CRITICAL: This is a DASHBOARD-LEVEL query about ALL systems across ALL regulations (EU AI Act, UK AI Act, MAS).
+
+IMPORTANT INSTRUCTIONS FOR DASHBOARD QUERIES:
+- The context includes systems from ALL regulations: EU AI Act, UK AI Act, and MAS
+- Do NOT focus only on EU AI Act - provide analysis across ALL regulations
+- When mentioning compliance status, specify which regulation(s) each system is under
+- If the question asks about "all systems" or "overall compliance", include ALL regulations
+- Break down statistics by regulation type when relevant (e.g., "EU: X systems, UK: Y systems, MAS: Z systems")
+- Do NOT assume all systems are EU AI Act systems
+- Reference the regulation coverage breakdown provided in the context
+
+LANGUAGE GUIDELINES FOR DASHBOARD RESPONSES:
+- DO NOT say "all evaluated under the EU AI Act" - instead say "evaluated across all regulations" or "across EU AI Act, UK AI Act, and MAS frameworks"
+- DO NOT say "compliant with the EU AI Act" - instead say "compliant across all regulations" or "compliant with [specific regulation]"
+- DO NOT lead with EU AI Act - start with neutral language like "across all regulations" or "across all compliance frameworks"
+- When stating overall compliance, say "across all regulations" or "across all compliance frameworks (EU AI Act, UK AI Act, MAS)"
+- Example GOOD phrasing: "Your organization manages 12 AI systems evaluated across all regulations (EU AI Act: 12, UK AI Act: 0, MAS: 0)"
+- Example BAD phrasing: "Your organization manages 12 AI systems, all evaluated under the EU AI Act"
+` : '';
+
   return `${BASE_SAFETY_PROMPT}
 
 MODE: SYSTEM_ANALYSIS
-Purpose: Analyze the user's AI system against regulations in an analytical, evidence-based, cautious tone.
+Purpose: Analyze the user's AI system(s) against regulations in an analytical, evidence-based, cautious tone.
 
 ${SYSTEM_ANALYSIS_DISCLAIMER}
 
@@ -204,19 +228,20 @@ ${historySection}
 User Question: "${userMessage}"
 
 ${complianceInstructions}
+${dashboardInstructions}
 
 Instructions:
-- ${isComplianceQuestion ? 'For compliance questions, provide a DIRECT answer first, then supporting details.' : 'Analyze the system based on available data'}
+- ${isDashboardQuery ? 'This is a dashboard query - analyze ALL systems across ALL regulations (EU, UK, MAS). Do NOT focus only on EU AI Act.' : isComplianceQuestion ? 'For compliance questions, provide a DIRECT answer first, then supporting details.' : 'Analyze the system based on available data'}
 - Be evidence-based and cautious in conclusions
 - Clearly state all assumptions
 - Explicitly mention missing data or limitations
-- Reference relevant regulations and requirements
+- ${isDashboardQuery ? 'Reference ALL regulations (EU AI Act, UK AI Act, MAS) when discussing compliance. Break down statistics by regulation when relevant.' : 'Reference relevant regulations and requirements'}
 - Identify potential governance or documentation gaps when data supports it
 - Use cautious language such as "may", "could", "potentially"
 - Never use absolute or final language
 - Do NOT make definitive legal or compliance claims
 - Recommend consulting experts for complex matters
-${conversationHistory ? '- Use previous conversation context to answer follow-up questions about previously discussed systems, reports, or assessments' : ''}
+${conversationHistory ? '- Use previous conversation context ONLY if directly relevant to the current question. Do NOT let old conversations bias the response towards a specific regulation.' : ''}
 ${conversationHistory ? '- If the user asks about a specific report or assessment mentioned earlier, reference that context' : ''}
 
 - Indicate confidence level of analysis:
@@ -224,7 +249,16 @@ ${conversationHistory ? '- If the user asks about a specific report or assessmen
   - Medium confidence: partial data available
   - Low confidence: critical information missing
 
-Format your response as clear, structured analysis. ${isComplianceQuestion ? 'Start with a direct answer, then provide supporting details.' : 'Use sections for different aspects (risk, compliance, gaps, etc.).'}`;
+${isDashboardQuery ? `
+CRITICAL RESPONSE FORMATTING FOR DASHBOARD QUERIES:
+- Start your response with neutral, regulation-agnostic language
+- Example opening: "Based on the available compliance assessments across all regulations (EU AI Act, UK AI Act, MAS), your organization manages X AI systems..."
+- DO NOT start with "all evaluated under the EU AI Act" or similar EU-focused language
+- When stating overall compliance status, say "across all regulations" not "with the EU AI Act"
+- Always include the regulation breakdown (EU: X, UK: Y, MAS: Z) early in your response
+` : ''}
+
+Format your response as clear, structured analysis. ${isComplianceQuestion ? 'Start with a direct answer, then provide supporting details.' : 'Use sections for different aspects (risk, compliance, gaps, etc.).'}${isDashboardQuery ? ' Include regulation breakdown when discussing multiple systems. Use neutral, regulation-agnostic language throughout.' : ''}`;
 }
 
 /**

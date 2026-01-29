@@ -90,23 +90,43 @@ export async function verifySystemAccess(
  * @param userId - Authenticated user ID
  * @param systemId - System ID (optional)
  * @param mode - Chatbot mode
+ * @param pageContext - Page context to determine if dashboard-level query
  * @returns true if access is valid, throws error if access denied
  */
 export async function enforceTenantIsolation(
   userId: string,
   systemId: string | undefined,
-  mode: 'SYSTEM_ANALYSIS' | 'ACTION'
+  mode: 'SYSTEM_ANALYSIS' | 'ACTION',
+  pageContext?: { pageType?: string }
 ): Promise<void> {
   // EXPLAIN mode doesn't require system access
   // if (mode === 'EXPLAIN') {
   //   return;
   // }
 
-  // SYSTEM_ANALYSIS mode always requires systemId
-  if (mode === 'SYSTEM_ANALYSIS' && !systemId) {
-    throw new Error(
-      `System ID is required for ${mode} mode. Please provide a valid system ID in page context.`
-    );
+  // SYSTEM_ANALYSIS mode:
+  // - Requires systemId when on a specific system page (ai-system)
+  // - Does NOT require systemId when on dashboard (for organization-wide queries)
+  if (mode === 'SYSTEM_ANALYSIS') {
+    const isDashboard = pageContext?.pageType === 'dashboard';
+    
+    if (!isDashboard && !systemId) {
+      throw new Error(
+        `System ID is required for ${mode} mode when analyzing a specific system. ` +
+        `Please provide a valid system ID in page context or navigate to a system detail page.`
+      );
+    }
+    
+    // If systemId is provided (even on dashboard), verify access
+    if (systemId) {
+      const hasAccess = await verifySystemAccess(userId, systemId);
+      if (!hasAccess) {
+        throw new Error(
+          `Access denied: You do not have permission to access system ${systemId}. ` +
+          `Tenant isolation enforced - cross-organization data access is not allowed.`
+        );
+      }
+    }
   }
 
   // ACTION mode: systemId is optional - can provide general guidance without system context
