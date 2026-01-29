@@ -100,8 +100,9 @@ if (!user_id) {
     const userId = user_id;
 
     const body = req.body;
-    const { system_name, ...answers } = body;
+    const { system_id, system_name, ...answers } = body;
     console.log(answers, "---x-x-x-x-x-x---");
+    console.log("[EU API] System ID:", system_id);
 
     const supabase = getSupabaseClient();
     const openai = getOpenAIClient();
@@ -214,6 +215,7 @@ Be precise and follow EU AI Act guidelines exactly.`;
     // 3. Store compliance result
     const complianceResult = {
       user_id: userId,
+      system_id: system_id || null, // Link to ai_systems table for multi-jurisdiction support
       system_name: system_name || "Unnamed System",
       classification: analysis.classification,
       reasoning: analysis.reasoning,
