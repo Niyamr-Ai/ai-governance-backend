@@ -7,7 +7,8 @@
 
 import { Request, Response } from 'express';
 import { supabaseAdmin } from '../../src/lib/supabase';
-import PDFDocument from 'pdfkit';
+import puppeteer from 'puppeteer';
+import { marked } from 'marked';
 
 /**
  * GET /api/documentation
@@ -167,113 +168,303 @@ export async function getDocumentationPDF(req: Request, res: Response) {
     console.log(`   - Content Length: ${doc.content?.length || 0} characters`);
     console.log(`   - Created: ${doc.created_at}`);
 
-    console.log(`📄 [PDF DOWNLOAD] Creating PDF document...`);
-    // Create PDF
-    const doc_pdf = new PDFDocument({
-      margin: 50,
-      size: 'A4'
-    });
-
     const filename = `${doc.regulation_type.replace(/\s+/g, '_')}_v${doc.version}_${docId.substring(0, 8)}.pdf`;
-    console.log(`📄 [PDF DOWNLOAD] Setting response headers...`);
     console.log(`📄 [PDF DOWNLOAD] Filename: ${filename}`);
     
-    // Set response headers
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    console.log(`📄 [PDF DOWNLOAD] Converting markdown to HTML...`);
+    // Convert markdown to HTML using marked
+    const htmlContent = await marked.parse(doc.content || '');
 
-    // Pipe PDF to response
-    console.log(`📄 [PDF DOWNLOAD] Piping PDF to response stream...`);
-    doc_pdf.pipe(res);
-
-    console.log(`📄 [PDF DOWNLOAD] Adding title and metadata to PDF...`);
-    // Add title
-    doc_pdf.fontSize(20).font('Helvetica-Bold').text(doc.regulation_type, { align: 'center' });
-    doc_pdf.moveDown(0.5);
-    doc_pdf.fontSize(14).font('Helvetica').text(`Version ${doc.version}`, { align: 'center' });
-    doc_pdf.moveDown(1);
-
-    // Add metadata
-    doc_pdf.fontSize(10).font('Helvetica').fillColor('gray');
-    if (doc.document_type) {
-      doc_pdf.text(`Document Type: ${doc.document_type}`);
+    console.log(`📄 [PDF DOWNLOAD] Creating beautiful HTML template...`);
+    // Create beautiful HTML with professional styling
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    @page {
+      size: A4;
+      margin: 20mm 15mm;
     }
-    doc_pdf.text(`Generated: ${new Date(doc.created_at).toLocaleString()}`);
-    if (doc.ai_system_version) {
-      doc_pdf.text(`AI System Version: ${doc.ai_system_version}`);
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
     }
-    if (doc.risk_assessment_version) {
-      doc_pdf.text(`Risk Assessment Version: ${doc.risk_assessment_version}`);
+    
+    body {
+      font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      font-size: 11pt;
+      line-height: 1.7;
+      color: #1a1a1a;
+      background-color: #ffffff;
+      padding: 0;
     }
-    doc_pdf.moveDown(1);
+    
+    .header {
+      margin-bottom: 40px;
+      padding-bottom: 25px;
+      border-bottom: 3px solid #2563eb;
+      background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+      padding: 30px 20px;
+      border-radius: 8px;
+      margin-bottom: 35px;
+    }
+    
+    .header h1 {
+      font-size: 28pt;
+      font-weight: 700;
+      color: #1e293b;
+      margin-bottom: 12px;
+      letter-spacing: -0.5px;
+    }
+    
+    .header-meta {
+      font-size: 10.5pt;
+      color: #64748b;
+      line-height: 1.8;
+    }
+    
+    .header-meta strong {
+      color: #334155;
+      font-weight: 600;
+    }
+    
+    .content {
+      padding: 0 5px;
+    }
+    
+    h1 {
+      font-size: 24pt;
+      font-weight: 700;
+      color: #1e293b;
+      margin-top: 35px;
+      margin-bottom: 18px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #e2e8f0;
+      letter-spacing: -0.3px;
+    }
+    
+    h2 {
+      font-size: 19pt;
+      font-weight: 600;
+      color: #334155;
+      margin-top: 30px;
+      margin-bottom: 15px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    
+    h3 {
+      font-size: 15pt;
+      font-weight: 600;
+      color: #475569;
+      margin-top: 25px;
+      margin-bottom: 12px;
+    }
+    
+    h4 {
+      font-size: 13pt;
+      font-weight: 600;
+      color: #64748b;
+      margin-top: 20px;
+      margin-bottom: 10px;
+    }
+    
+    p {
+      margin-bottom: 14px;
+      margin-top: 0;
+      text-align: justify;
+      color: #1e293b;
+      line-height: 1.75;
+    }
+    
+    ul, ol {
+      margin-top: 12px;
+      margin-bottom: 18px;
+      padding-left: 30px;
+    }
+    
+    li {
+      margin-bottom: 10px;
+      line-height: 1.8;
+      color: #334155;
+    }
+    
+    li::marker {
+      color: #2563eb;
+    }
+    
+    strong {
+      font-weight: 600;
+      color: #1e293b;
+    }
+    
+    em {
+      font-style: italic;
+      color: #475569;
+    }
+    
+    code {
+      background-color: #f1f5f9;
+      color: #0f172a;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      font-size: 10pt;
+      border: 1px solid #e2e8f0;
+    }
+    
+    pre {
+      background-color: #f8fafc;
+      color: #0f172a;
+      padding: 18px;
+      border-radius: 6px;
+      margin: 20px 0;
+      overflow-x: auto;
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      font-size: 9.5pt;
+      line-height: 1.6;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+    
+    pre code {
+      background: none;
+      padding: 0;
+      border: none;
+      font-size: inherit;
+    }
+    
+    blockquote {
+      border-left: 4px solid #2563eb;
+      padding-left: 20px;
+      margin: 20px 0;
+      color: #475569;
+      font-style: italic;
+      background-color: #f8fafc;
+      padding: 15px 20px;
+      border-radius: 4px;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    
+    th, td {
+      border: 1px solid #e2e8f0;
+      padding: 12px 15px;
+      text-align: left;
+      color: #1e293b;
+    }
+    
+    th {
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      color: #ffffff;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 10pt;
+      letter-spacing: 0.5px;
+    }
+    
+    tr:nth-child(even) {
+      background-color: #f8fafc;
+    }
+    
+    tr:hover {
+      background-color: #f1f5f9;
+    }
+    
+    hr {
+      border: none;
+      border-top: 2px solid #e2e8f0;
+      margin: 30px 0;
+    }
+    
+    a {
+      color: #2563eb;
+      text-decoration: none;
+    }
+    
+    a:hover {
+      text-decoration: underline;
+    }
+    
+    .page-break {
+      page-break-after: always;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>${doc.regulation_type}</h1>
+    <div class="header-meta">
+      <strong>Version:</strong> ${doc.version} &nbsp;|&nbsp;
+      <strong>Generated:</strong> ${new Date(doc.created_at).toLocaleString()}
+      ${doc.document_type && doc.document_type !== 'Compliance Summary' ? ` &nbsp;|&nbsp; <strong>Type:</strong> ${doc.document_type}` : ''}
+      ${doc.ai_system_version ? ` &nbsp;|&nbsp; <strong>System Version:</strong> ${doc.ai_system_version}` : ''}
+      ${doc.risk_assessment_version ? ` &nbsp;|&nbsp; <strong>Risk Assessment Version:</strong> ${doc.risk_assessment_version}` : ''}
+    </div>
+  </div>
+  <div class="content">
+    ${htmlContent}
+  </div>
+</body>
+</html>
+    `;
 
-    // Add content
-    console.log(`📄 [PDF DOWNLOAD] Processing content (${doc.content?.length || 0} chars)...`);
-    doc_pdf.fontSize(12).font('Helvetica').fillColor('black');
-    
-    // Convert markdown to plain text for PDF (simple conversion)
-    const content = doc.content || '';
-    
-    // Split content into lines and process
-    const lines = content.split('\n');
-    console.log(`📄 [PDF DOWNLOAD] Content split into ${lines.length} lines`);
-    let inCodeBlock = false;
-    let lineCount = 0;
-    
-    for (const line of lines) {
-      lineCount++;
-      try {
-        if (line.trim().startsWith('```')) {
-          inCodeBlock = !inCodeBlock;
-          continue;
-        }
-        
-        if (inCodeBlock) {
-          // Code block - use monospace font
-          doc_pdf.font('Courier').fontSize(10).fillColor('black');
-          doc_pdf.text(line, { continued: false });
-          doc_pdf.font('Helvetica').fontSize(12);
-        } else if (line.trim().startsWith('# ')) {
-          // H1
-          doc_pdf.fontSize(18).font('Helvetica-Bold').text(line.substring(2), { paragraphGap: 5 });
-          doc_pdf.moveDown(0.5);
-        } else if (line.trim().startsWith('## ')) {
-          // H2
-          doc_pdf.fontSize(16).font('Helvetica-Bold').text(line.substring(3), { paragraphGap: 5 });
-          doc_pdf.moveDown(0.5);
-        } else if (line.trim().startsWith('### ')) {
-          // H3
-          doc_pdf.fontSize(14).font('Helvetica-Bold').text(line.substring(4), { paragraphGap: 5 });
-          doc_pdf.moveDown(0.5);
-        } else if (line.trim().startsWith('#### ')) {
-          // H4
-          doc_pdf.fontSize(12).font('Helvetica-Bold').text(line.substring(5), { paragraphGap: 5 });
-          doc_pdf.moveDown(0.5);
-        } else if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
-          // List item
-          doc_pdf.text(`  • ${line.substring(2)}`, { paragraphGap: 3 });
-        } else if (line.trim() === '') {
-          // Empty line
-          doc_pdf.moveDown(0.5);
-        } else {
-          // Regular text
-          doc_pdf.text(line, { paragraphGap: 3 });
-        }
-      } catch (lineError: any) {
-        console.error(`⚠️  [PDF DOWNLOAD] Error processing line ${lineCount}:`, lineError.message);
-        console.error(`⚠️  [PDF DOWNLOAD] Line content (first 100 chars): ${line.substring(0, 100)}`);
-        // Continue processing other lines
-      }
-    }
+    console.log(`📄 [PDF DOWNLOAD] Launching Puppeteer browser...`);
+    // Launch Puppeteer
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
 
-    console.log(`📄 [PDF DOWNLOAD] Processed ${lineCount} lines successfully`);
-    console.log(`📄 [PDF DOWNLOAD] Finalizing PDF...`);
-    
-    // Finalize PDF
-    doc_pdf.end();
-    
-    console.log(`✅ [PDF DOWNLOAD] PDF generation completed successfully`);
-    console.log(`📄 [PDF DOWNLOAD] === PDF Download Request Completed ===\n`);
+    try {
+      console.log(`📄 [PDF DOWNLOAD] Creating new page...`);
+      const page = await browser.newPage();
+      
+      console.log(`📄 [PDF DOWNLOAD] Setting content and waiting for fonts...`);
+      await page.setContent(html, { waitUntil: 'networkidle0' });
+      
+      console.log(`📄 [PDF DOWNLOAD] Generating PDF...`);
+      // Generate PDF with high quality settings
+      const pdfBuffer = await page.pdf({
+        format: 'A4',
+        margin: {
+          top: '20mm',
+          right: '15mm',
+          bottom: '20mm',
+          left: '15mm'
+        },
+        printBackground: true,
+        preferCSSPageSize: true,
+        displayHeaderFooter: false
+      });
+
+      console.log(`📄 [PDF DOWNLOAD] PDF generated successfully (${pdfBuffer.length} bytes)`);
+      
+      // Set response headers
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', pdfBuffer.length.toString());
+      
+      console.log(`📄 [PDF DOWNLOAD] Sending PDF to client...`);
+      res.send(pdfBuffer);
+      
+      console.log(`✅ [PDF DOWNLOAD] PDF generation completed successfully`);
+      console.log(`📄 [PDF DOWNLOAD] === PDF Download Request Completed ===\n`);
+    } finally {
+      console.log(`📄 [PDF DOWNLOAD] Closing browser...`);
+      await browser.close();
+    }
 
   } catch (error: any) {
     console.error(`\n❌ [PDF DOWNLOAD] === PDF Download Error ===`);
