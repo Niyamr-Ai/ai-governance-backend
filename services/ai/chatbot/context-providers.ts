@@ -282,40 +282,19 @@ export async function getSystemAnalysisContext(
     try {
       const supabase = supabaseAdmin;
       
-      // Fetch all systems across all compliance frameworks for this user's organization
-      console.log(`[Context] 🔍 Fetching systems for org_id/user_id: ${userId}`);
+      // Fetch all systems across all compliance frameworks for this user
+      // IMPORTANT: Use user_id to match dashboard API behavior (dashboard uses user_id, not org_id)
+      console.log(`[Context] 🔍 Fetching systems for user_id: ${userId}`);
       
-      // Try org_id first, fallback to user_id if org_id returns no results (for backwards compatibility)
       // NOTE: Column names must match database schema:
-      // UK: risk_level, overall_assessment (snake_case)
-      // MAS: overall_risk_level, overall_compliance_status (snake_case)
-      const [euSystems, ukSystemsByOrg, masSystemsByOrg] = await Promise.all([
-        supabase.from('eu_ai_act_check_results').select('id, system_name, risk_tier, compliance_status').eq('org_id', userId),
-        supabase.from('uk_ai_assessments').select('id, system_name, risk_level, overall_assessment').eq('org_id', userId),
-        supabase.from('mas_ai_risk_assessments').select('id, system_name, overall_risk_level, overall_compliance_status').eq('org_id', userId)
+      // EU: uses user_id (matching /api/compliance endpoint)
+      // UK: risk_level, overall_assessment (snake_case), uses user_id (matching /api/uk-compliance endpoint)
+      // MAS: overall_risk_level, overall_compliance_status (snake_case), uses user_id (matching /api/mas-compliance endpoint)
+      const [euSystems, ukSystems, masSystems] = await Promise.all([
+        supabase.from('eu_ai_act_check_results').select('id, system_name, risk_tier, compliance_status').eq('user_id', userId),
+        supabase.from('uk_ai_assessments').select('id, system_name, risk_level, overall_assessment').eq('user_id', userId),
+        supabase.from('mas_ai_risk_assessments').select('id, system_name, overall_risk_level, overall_compliance_status').eq('user_id', userId)
       ]);
-
-      // If org_id query returned no results, try user_id as fallback (for backwards compatibility)
-      let ukSystems = ukSystemsByOrg;
-      let masSystems = masSystemsByOrg;
-      
-      if (!ukSystemsByOrg.data || ukSystemsByOrg.data.length === 0) {
-        console.log(`[Context] ⚠️ UK: No systems found with org_id, trying user_id fallback...`);
-        const ukByUserId = await supabase.from('uk_ai_assessments').select('id, system_name, risk_level, overall_assessment').eq('user_id', userId);
-        if (ukByUserId.data && ukByUserId.data.length > 0) {
-          console.log(`[Context] ✅ UK: Found ${ukByUserId.data.length} systems using user_id`);
-          ukSystems = ukByUserId;
-        }
-      }
-      
-      if (!masSystemsByOrg.data || masSystemsByOrg.data.length === 0) {
-        console.log(`[Context] ⚠️ MAS: No systems found with org_id, trying user_id fallback...`);
-        const masByUserId = await supabase.from('mas_ai_risk_assessments').select('id, system_name, overall_risk_level, overall_compliance_status').eq('user_id', userId);
-        if (masByUserId.data && masByUserId.data.length > 0) {
-          console.log(`[Context] ✅ MAS: Found ${masByUserId.data.length} systems using user_id`);
-          masSystems = masByUserId;
-        }
-      }
 
       // Log query results
       console.log(`[Context] 📊 Query Results:`);
@@ -395,45 +374,208 @@ export async function getSystemAnalysisContext(
 
       allSystems.push(...Array.from(systemMap.values()));
 
-      console.log(`[Context] ✅ Aggregated ${allSystems.length} unique systems across all regulations`);
+      // Calculate TOTAL ASSESSMENT RECORDS (matching dashboard count)
+      // Dashboard counts all assessment records, not unique systems
+      // Use the actual data arrays (not deduplicated) to match dashboard behavior
+      const euCount = euSystems.data?.length || 0;
+      const ukCount = ukSystems.data?.length || 0;
+      const masCount = masSystems.data?.length || 0;
+      const totalAssessmentRecords = euCount + ukCount + masCount;
+      const uniqueSystemsCount = allSystems.length;
+
+      console.log(`[Context] ✅ Aggregated ${uniqueSystemsCount} unique systems across all regulations`);
+      console.log(`[Context] 📊 Total assessment records: ${totalAssessmentRecords} (EU: ${euSystems.data?.length || 0}, UK: ${ukSystems.data?.length || 0}, MAS: ${masSystems.data?.length || 0})`);
       if (allSystems.length > 0) {
         console.log(`[Context]    Systems breakdown: ${allSystems.map(s => `${s.name} (${s.frameworks.join(', ')})`).join(', ')}`);
       }
 
       // Calculate overall statistics
-      const totalSystems = allSystems.length;
-      const compliantCount = allSystems.filter(s => 
-        s.complianceStatuses.some((status: string) => 
-          status.toLowerCase().includes('compliant') && !status.toLowerCase().includes('non') && !status.toLowerCase().includes('partial')
-        )
-      ).length;
-      const nonCompliantCount = allSystems.filter(s => 
-        s.complianceStatuses.some((status: string) => 
-          status.toLowerCase().includes('non-compliant') || status.toLowerCase().includes('non compliant')
-        )
-      ).length;
-      const partiallyCompliantCount = totalSystems - compliantCount - nonCompliantCount;
+      // Use totalAssessmentRecords for "total systems" count to match dashboard
+      const totalSystems = totalAssessmentRecords; // Match dashboard: count all assessment records
+      
+      // Count compliance status from RAW assessment records (not deduplicated systems)
+      // This matches dashboard behavior which counts all assessment records
+      let compliantCount = 0;
+      let nonCompliantCount = 0;
+      let partiallyCompliantCount = 0;
+      
+      // Count EU compliance
+      if (euSystems.data) {
+        euSystems.data.forEach((sys: any) => {
+          const status = (sys.compliance_status || '').toLowerCase();
+          if (status.includes('compliant') && !status.includes('non') && !status.includes('partial')) {
+            compliantCount++;
+          } else if (status.includes('non-compliant') || status.includes('non compliant')) {
+            nonCompliantCount++;
+          } else if (status.includes('partial')) {
+            partiallyCompliantCount++;
+          }
+        });
+      }
+      
+      // Count UK compliance
+      if (ukSystems.data) {
+        ukSystems.data.forEach((sys: any) => {
+          const status = (sys.overall_assessment || '').toLowerCase();
+          if (status.includes('compliant') && !status.includes('non') && !status.includes('partial')) {
+            compliantCount++;
+          } else if (status.includes('non-compliant') || status.includes('non compliant')) {
+            nonCompliantCount++;
+          } else if (status.includes('partial')) {
+            partiallyCompliantCount++;
+          }
+        });
+      }
+      
+      // Count MAS compliance
+      if (masSystems.data) {
+        masSystems.data.forEach((sys: any) => {
+          const status = (sys.overall_compliance_status || '').toLowerCase();
+          if (status.includes('compliant') && !status.includes('non') && !status.includes('partial')) {
+            compliantCount++;
+          } else if (status.includes('non-compliant') || status.includes('non compliant')) {
+            nonCompliantCount++;
+          } else if (status.includes('partial')) {
+            partiallyCompliantCount++;
+          }
+        });
+      }
+      
+      // Count by risk level from RAW assessment records (not deduplicated systems)
+      let highRiskCount = 0;
+      let mediumRiskCount = 0;
+      let lowRiskCount = 0;
+      let prohibitedCount = 0;
+      let unknownRiskCount = 0; // Track systems without risk level
+      
+      // Count EU risk
+      if (euSystems.data) {
+        euSystems.data.forEach((sys: any) => {
+          const risk = (sys.risk_tier || '').toLowerCase().trim();
+          if (!risk || risk === 'null' || risk === 'undefined') {
+            unknownRiskCount++;
+          } else if (risk === 'prohibited') {
+            prohibitedCount++;
+          } else if (risk.includes('high') || risk.includes('critical')) {
+            highRiskCount++;
+          } else if (risk.includes('medium')) {
+            mediumRiskCount++;
+          } else if (risk.includes('low')) {
+            lowRiskCount++;
+          } else {
+            unknownRiskCount++; // Unknown risk level
+          }
+        });
+      }
+      
+      // Count UK risk
+      if (ukSystems.data) {
+        ukSystems.data.forEach((sys: any) => {
+          const risk = (sys.risk_level || '').toLowerCase().trim();
+          if (!risk || risk === 'null' || risk === 'undefined') {
+            unknownRiskCount++;
+          } else if (risk.includes('high') || risk.includes('critical') || risk.includes('frontier')) {
+            highRiskCount++;
+          } else if (risk.includes('medium')) {
+            mediumRiskCount++;
+          } else if (risk.includes('low')) {
+            lowRiskCount++;
+          } else {
+            unknownRiskCount++; // Unknown risk level
+          }
+        });
+      }
+      
+      // Count MAS risk
+      if (masSystems.data) {
+        masSystems.data.forEach((sys: any) => {
+          const risk = (sys.overall_risk_level || '').toLowerCase().trim();
+          if (!risk || risk === 'null' || risk === 'undefined') {
+            unknownRiskCount++;
+          } else if (risk === 'critical') {
+            highRiskCount++; // Critical is counted as high-risk only (not prohibited)
+          } else if (risk.includes('high')) {
+            highRiskCount++;
+          } else if (risk.includes('medium')) {
+            mediumRiskCount++;
+          } else if (risk.includes('low')) {
+            lowRiskCount++;
+          } else {
+            unknownRiskCount++; // Unknown risk level
+          }
+        });
+      }
+      
+      // Verify total count matches assessment records
+      const riskTotal = highRiskCount + mediumRiskCount + lowRiskCount + prohibitedCount + unknownRiskCount;
+      if (riskTotal !== totalAssessmentRecords) {
+        console.warn(`[Context] ⚠️ Risk count mismatch: ${riskTotal} vs ${totalAssessmentRecords} assessment records`);
+      }
 
-      // Count by risk level
-      const highRiskCount = allSystems.filter(s => 
-        s.riskLevels.some((risk: string) => risk.toLowerCase().includes('high'))
-      ).length;
-      const mediumRiskCount = allSystems.filter(s => 
-        s.riskLevels.some((risk: string) => risk.toLowerCase().includes('medium'))
-      ).length;
-      const lowRiskCount = allSystems.filter(s => 
-        s.riskLevels.some((risk: string) => risk.toLowerCase().includes('low'))
-      ).length;
-
-      // Calculate regulation-specific statistics
-      const euSystemsList = allSystems.filter(s => s.frameworks.includes('EU AI Act'));
-      const ukSystemsList = allSystems.filter(s => s.frameworks.includes('UK AI Act'));
-      const masSystemsList = allSystems.filter(s => s.frameworks.includes('MAS'));
+      // Calculate regulation-specific statistics for compliance and risk
+      let euCompliant = 0, euPartiallyCompliant = 0, euNonCompliant = 0;
+      let ukCompliant = 0, ukPartiallyCompliant = 0, ukNonCompliant = 0;
+      let masCompliant = 0, masPartiallyCompliant = 0, masNonCompliant = 0;
+      
+      let euHighRisk = 0, euMediumRisk = 0, euLowRisk = 0, euProhibited = 0;
+      let ukHighRisk = 0, ukMediumRisk = 0, ukLowRisk = 0;
+      let masHighRisk = 0, masMediumRisk = 0, masLowRisk = 0, masCritical = 0;
+      
+      // Count EU-specific stats
+      if (euSystems.data) {
+        euSystems.data.forEach((sys: any) => {
+          const status = (sys.compliance_status || '').toLowerCase();
+          const risk = (sys.risk_tier || '').toLowerCase();
+          if (status.includes('compliant') && !status.includes('non') && !status.includes('partial')) euCompliant++;
+          else if (status.includes('non-compliant') || status.includes('non compliant')) euNonCompliant++;
+          else if (status.includes('partial')) euPartiallyCompliant++;
+          if (risk === 'prohibited') euProhibited++;
+          else if (risk.includes('high') || risk.includes('critical')) euHighRisk++;
+          else if (risk.includes('medium')) euMediumRisk++;
+          else if (risk.includes('low')) euLowRisk++;
+        });
+      }
+      
+      // Count UK-specific stats
+      if (ukSystems.data) {
+        ukSystems.data.forEach((sys: any) => {
+          const status = (sys.overall_assessment || '').toLowerCase();
+          const risk = (sys.risk_level || '').toLowerCase();
+          if (status.includes('compliant') && !status.includes('non') && !status.includes('partial')) ukCompliant++;
+          else if (status.includes('non-compliant') || status.includes('non compliant')) ukNonCompliant++;
+          else if (status.includes('partial')) ukPartiallyCompliant++;
+          if (risk.includes('high') || risk.includes('critical') || risk.includes('frontier')) ukHighRisk++;
+          else if (risk.includes('medium')) ukMediumRisk++;
+          else if (risk.includes('low')) ukLowRisk++;
+        });
+      }
+      
+      // Count MAS-specific stats
+      if (masSystems.data) {
+        masSystems.data.forEach((sys: any) => {
+          const status = (sys.overall_compliance_status || '').toLowerCase();
+          const risk = (sys.overall_risk_level || '').toLowerCase().trim();
+          if (status.includes('compliant') && !status.includes('non') && !status.includes('partial')) masCompliant++;
+          else if (status.includes('non-compliant') || status.includes('non compliant')) masNonCompliant++;
+          else if (status.includes('partial')) masPartiallyCompliant++;
+          if (risk === 'critical') {
+            masCritical++;
+            masHighRisk++; // Critical is also counted as high-risk
+          } else if (risk.includes('high')) {
+            masHighRisk++;
+          } else if (risk.includes('medium')) {
+            masMediumRisk++;
+          } else if (risk.includes('low')) {
+            masLowRisk++;
+          }
+        });
+      }
       
       // Build comprehensive dashboard summary with regulation breakdown
+      // NOTE: totalSystems now represents TOTAL ASSESSMENT RECORDS (matching dashboard)
       const dashboardSummary = `
 **Organization Overview (ALL Regulations):**
-- Total AI Systems: ${totalSystems}
+- Total Assessments: ${totalSystems} (${uniqueSystemsCount} unique systems)
 - Compliant Systems: ${compliantCount}
 - Partially Compliant: ${partiallyCompliantCount}
 - Non-Compliant Systems: ${nonCompliantCount}
@@ -442,11 +584,20 @@ export async function getSystemAnalysisContext(
 - High Risk: ${highRiskCount}
 - Medium Risk: ${mediumRiskCount}
 - Low Risk: ${lowRiskCount}
+${prohibitedCount > 0 ? `- Prohibited: ${prohibitedCount}` : ''}
+${unknownRiskCount > 0 ? `- Unknown/Unassigned: ${unknownRiskCount}` : ''}
+- **Total**: ${riskTotal} assessment records
 
-**Regulation Coverage:**
-- EU AI Act Systems: ${euSystemsList.length}
-- UK AI Act Systems: ${ukSystemsList.length}
-- MAS Systems: ${masSystemsList.length}
+**Regulation Coverage (Assessment Records):**
+- EU AI Act: ${euCount} assessments
+  - Compliant: ${euCompliant}, Partially Compliant: ${euPartiallyCompliant}, Non-Compliant: ${euNonCompliant}
+  - Risk: High: ${euHighRisk}, Medium: ${euMediumRisk}, Low: ${euLowRisk}${euProhibited > 0 ? `, Prohibited: ${euProhibited}` : ''}
+- UK AI Act: ${ukCount} assessments
+  - Compliant: ${ukCompliant}, Partially Compliant: ${ukPartiallyCompliant}, Non-Compliant: ${ukNonCompliant}
+  - Risk: High: ${ukHighRisk}, Medium: ${ukMediumRisk}, Low: ${ukLowRisk}
+- MAS: ${masCount} assessments
+  - Compliant: ${masCompliant}, Partially Compliant: ${masPartiallyCompliant}, Non-Compliant: ${masNonCompliant}
+  - Risk: High: ${masHighRisk}, Medium: ${masMediumRisk}, Low: ${masLowRisk}${masCritical > 0 ? `, Critical: ${masCritical}` : ''}
 
 **Systems List (All Regulations):**
 ${allSystems.length > 0 ? allSystems.map(s => {
@@ -928,19 +1079,99 @@ export async function getActionContext(
     }
 
     // SUPPORTING SOURCE: Database for current system state and pending tasks
-    if (pageContext.systemId && userId) {
+    // Handle both single system queries and dashboard queries
+    const isDashboardQuery = pageContext.pageType === 'dashboard' && !pageContext.systemId;
+    
+    if (userId) {
       try {
-        const { data: tasks } = await supabase
-          .from('governance_tasks')
-          .select('*')
-          .eq('ai_system_id', pageContext.systemId)
-          .eq('status', 'Pending')
-          .limit(5);
+        if (isDashboardQuery) {
+          // Dashboard query: Fetch pending tasks across ALL systems for this user
+          console.log(`[Context] Dashboard query detected - fetching pending tasks across all systems`);
+          
+          // Get all system IDs for this user across all regulations
+          const [euSystems, ukSystems, masSystems] = await Promise.all([
+            supabase.from('eu_ai_act_check_results').select('id').eq('user_id', userId),
+            supabase.from('uk_ai_assessments').select('id').eq('user_id', userId),
+            supabase.from('mas_ai_risk_assessments').select('id').eq('user_id', userId)
+          ]);
+          
+          const allSystemIds = [
+            ...(euSystems.data || []).map(s => s.id),
+            ...(ukSystems.data || []).map(s => s.id),
+            ...(masSystems.data || []).map(s => s.id)
+          ];
+          
+          if (allSystemIds.length > 0) {
+            const { data: tasks } = await supabase
+              .from('governance_tasks')
+              .select('*')
+              .in('ai_system_id', allSystemIds)
+              .eq('status', 'Pending')
+              .order('created_at', { ascending: false })
+              .limit(20); // Get more tasks for dashboard view
+            
+            if (tasks && tasks.length > 0) {
+              console.log(`[Context] ✅ Found ${tasks.length} pending tasks across all systems`);
+              
+              // Fetch system names for each task to provide context
+              const systemIdToNameMap = new Map<string, string>();
+              
+              // Get unique system IDs from tasks
+              const uniqueSystemIds = [...new Set(tasks.map(t => t.ai_system_id))];
+              
+              // Fetch system names from all regulation tables in parallel
+              const [euSystemsData, ukSystemsData, masSystemsData] = await Promise.all([
+                supabase.from('eu_ai_act_check_results').select('id, system_name').in('id', uniqueSystemIds),
+                supabase.from('uk_ai_assessments').select('id, system_name').in('id', uniqueSystemIds),
+                supabase.from('mas_ai_risk_assessments').select('id, system_name').in('id', uniqueSystemIds)
+              ]);
+              
+              // Build system name map
+              if (euSystemsData.data) {
+                euSystemsData.data.forEach(sys => {
+                  if (sys.system_name) systemIdToNameMap.set(sys.id, sys.system_name);
+                });
+              }
+              if (ukSystemsData.data) {
+                ukSystemsData.data.forEach(sys => {
+                  if (sys.system_name && !systemIdToNameMap.has(sys.id)) {
+                    systemIdToNameMap.set(sys.id, sys.system_name);
+                  }
+                });
+              }
+              if (masSystemsData.data) {
+                masSystemsData.data.forEach(sys => {
+                  if (sys.system_name && !systemIdToNameMap.has(sys.id)) {
+                    systemIdToNameMap.set(sys.id, sys.system_name);
+                  }
+                });
+              }
+              
+              // Format tasks with system context
+              tasks.forEach(task => {
+                const systemName = systemIdToNameMap.get(task.ai_system_id) || 'Unknown System';
+                const regulation = task.regulation || 'Unknown';
+                const taskTitle = task.title || 'Untitled task';
+                pendingTasks.push(`${taskTitle} (${systemName} - ${regulation})`);
+              });
+            } else {
+              console.log(`[Context] ℹ️ No pending tasks found across all systems`);
+            }
+          }
+        } else if (pageContext.systemId) {
+          // Single system query: Fetch pending tasks for specific system
+          const { data: tasks } = await supabase
+            .from('governance_tasks')
+            .select('*')
+            .eq('ai_system_id', pageContext.systemId)
+            .eq('status', 'Pending')
+            .limit(5);
 
-        if (tasks) {
-          tasks.forEach(task => {
-            pendingTasks.push(task.title || 'Untitled task');
-          });
+          if (tasks && tasks.length > 0) {
+            tasks.forEach(task => {
+              pendingTasks.push(task.title || 'Untitled task');
+            });
+          }
         }
       } catch (dbError) {
         console.error('[Context] Error fetching pending tasks:', dbError);

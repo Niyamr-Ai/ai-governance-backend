@@ -237,9 +237,48 @@ Example Response Structure:
   // Detect if this is a dashboard-level query (organization-wide, not single system)
   const isDashboardQuery = context.systemName === 'Organization Dashboard' || context.systemName === 'Error';
   
+  // Detect if user is asking for a comparison between specific regulations
+  const userMsgLower = userMessage.toLowerCase();
+  const mentionsEU = /eu|european union/i.test(userMessage);
+  const mentionsUK = /uk|united kingdom|britain|british/i.test(userMessage);
+  const mentionsMAS = /mas|singapore|monetary authority/i.test(userMessage);
+  const isComparisonQuestion = /compare|comparison|between|versus|vs|difference/i.test(userMsgLower);
+  
+  // Determine which regulations are being compared
+  let comparedRegulations: string[] = [];
+  if (isComparisonQuestion) {
+    if (mentionsEU && mentionsUK && !mentionsMAS) {
+      comparedRegulations = ['EU', 'UK'];
+    } else if (mentionsEU && mentionsMAS && !mentionsUK) {
+      comparedRegulations = ['EU', 'MAS'];
+    } else if (mentionsUK && mentionsMAS && !mentionsEU) {
+      comparedRegulations = ['UK', 'MAS'];
+    } else if (mentionsEU && !mentionsUK && !mentionsMAS) {
+      comparedRegulations = ['EU'];
+    } else if (mentionsUK && !mentionsEU && !mentionsMAS) {
+      comparedRegulations = ['UK'];
+    } else if (mentionsMAS && !mentionsEU && !mentionsUK) {
+      comparedRegulations = ['MAS'];
+    }
+  }
+  
+  const isSpecificComparison = isComparisonQuestion && comparedRegulations.length > 0 && comparedRegulations.length <= 2;
+  
   const dashboardInstructions = isDashboardQuery ? `
-CRITICAL: This is a DASHBOARD-LEVEL query about ALL systems across ALL regulations (EU AI Act, UK AI Act, MAS).
+CRITICAL: This is a DASHBOARD-LEVEL query about systems across regulations.
 
+${isSpecificComparison ? `
+⚠️ REGULATION-SPECIFIC COMPARISON DETECTED:
+- The user is asking to compare ONLY: ${comparedRegulations.join(' and ')} ${comparedRegulations.length === 1 ? 'systems' : ''}
+- You MUST focus ONLY on ${comparedRegulations.join(' and ')} systems
+- Do NOT include MAS${comparedRegulations.includes('MAS') ? '' : ' systems'} in the comparison
+- Do NOT include EU${comparedRegulations.includes('EU') ? '' : ' systems'} in the comparison  
+- Do NOT include UK${comparedRegulations.includes('UK') ? '' : ' systems'} in the comparison
+- Do NOT show "Overall Compliance Status Across All Regulations" - only show comparison between ${comparedRegulations.join(' and ')}
+- Start your response with: "Comparing compliance status between ${comparedRegulations.join(' and ')} systems..."
+- Provide side-by-side comparison ONLY for ${comparedRegulations.join(' and ')}
+- Exclude any statistics or summaries that include other regulations
+` : `
 IMPORTANT INSTRUCTIONS FOR DASHBOARD QUERIES:
 - The context includes systems from ALL regulations: EU AI Act, UK AI Act, and MAS
 - Do NOT focus only on EU AI Act - provide analysis across ALL regulations
@@ -256,6 +295,7 @@ LANGUAGE GUIDELINES FOR DASHBOARD RESPONSES:
 - When stating overall compliance, say "across all regulations" or "across all compliance frameworks (EU AI Act, UK AI Act, MAS)"
 - Example GOOD phrasing: "Your organization manages 12 AI systems evaluated across all regulations (EU AI Act: 12, UK AI Act: 0, MAS: 0)"
 - Example BAD phrasing: "Your organization manages 12 AI systems, all evaluated under the EU AI Act"
+`}
 ` : '';
 
   return `${BASE_SAFETY_PROMPT}
@@ -277,11 +317,21 @@ ${complianceInstructions}
 ${dashboardInstructions}
 
 Instructions:
-- ${isDashboardQuery ? 'This is a dashboard query - analyze ALL systems across ALL regulations (EU, UK, MAS). Do NOT focus only on EU AI Act.' : isComplianceQuestion ? 'For compliance questions, provide a DIRECT answer first, then supporting details.' : 'Analyze the system based on available data'}
+- ${isDashboardQuery 
+    ? (isSpecificComparison 
+        ? `This is a dashboard query requesting a comparison between ${comparedRegulations.join(' and ')} systems ONLY. Focus ONLY on ${comparedRegulations.join(' and ')} systems. Do NOT include other regulations (${comparedRegulations.includes('EU') ? '' : 'EU'}${comparedRegulations.includes('UK') ? '' : (comparedRegulations.includes('EU') ? ', ' : '') + 'UK'}${comparedRegulations.includes('MAS') ? '' : (comparedRegulations.includes('EU') || comparedRegulations.includes('UK') ? ', ' : '') + 'MAS'}) in your response.`
+        : 'This is a dashboard query - analyze ALL systems across ALL regulations (EU, UK, MAS). Do NOT focus only on EU AI Act.')
+    : isComplianceQuestion 
+        ? 'For compliance questions, provide a DIRECT answer first, then supporting details.' 
+        : 'Analyze the system based on available data'}
 - Be evidence-based and cautious in conclusions
 - Clearly state all assumptions
 - Explicitly mention missing data or limitations
-- ${isDashboardQuery ? 'Reference ALL regulations (EU AI Act, UK AI Act, MAS) when discussing compliance. Break down statistics by regulation when relevant.' : 'Reference relevant regulations and requirements'}
+- ${isDashboardQuery 
+    ? (isSpecificComparison 
+        ? `Reference ONLY ${comparedRegulations.join(' and ')} regulations when discussing compliance. Provide side-by-side comparison between ${comparedRegulations.join(' and ')} only.`
+        : 'Reference ALL regulations (EU AI Act, UK AI Act, MAS) when discussing compliance. Break down statistics by regulation when relevant.')
+    : 'Reference relevant regulations and requirements'}
 - Identify potential governance or documentation gaps when data supports it
 - Use cautious language such as "may", "could", "potentially"
 - Never use absolute or final language
@@ -311,14 +361,22 @@ ${conversationHistory && hasPronouns ? `
 
 ${isDashboardQuery ? `
 CRITICAL RESPONSE FORMATTING FOR DASHBOARD QUERIES:
+${isSpecificComparison ? `
+- Start your response with: "Comparing compliance status between ${comparedRegulations.join(' and ')} systems..."
+- Focus ONLY on ${comparedRegulations.join(' and ')} systems
+- Do NOT include "Overall Compliance Status Across All Regulations" - only show ${comparedRegulations.join(' and ')} comparison
+- Provide side-by-side comparison with specific numbers for ${comparedRegulations.join(' and ')} only
+- Do NOT mention other regulations (${comparedRegulations.includes('EU') ? '' : 'EU'}${comparedRegulations.includes('UK') ? '' : (comparedRegulations.includes('EU') ? ', ' : '') + 'UK'}${comparedRegulations.includes('MAS') ? '' : (comparedRegulations.includes('EU') || comparedRegulations.includes('UK') ? ', ' : '') + 'MAS'}) in the comparison
+` : `
 - Start your response with neutral, regulation-agnostic language
 - Example opening: "Based on the available compliance assessments across all regulations (EU AI Act, UK AI Act, MAS), your organization manages X AI systems..."
 - DO NOT start with "all evaluated under the EU AI Act" or similar EU-focused language
 - When stating overall compliance status, say "across all regulations" not "with the EU AI Act"
 - Always include the regulation breakdown (EU: X, UK: Y, MAS: Z) early in your response
+`}
 ` : ''}
 
-Format your response as clear, structured analysis. ${isComplianceQuestion ? 'Start with a direct answer, then provide supporting details.' : 'Use sections for different aspects (risk, compliance, gaps, etc.).'}${isDashboardQuery ? ' Include regulation breakdown when discussing multiple systems. Use neutral, regulation-agnostic language throughout.' : ''}`;
+Format your response as clear, structured analysis. ${isComplianceQuestion ? 'Start with a direct answer, then provide supporting details.' : 'Use sections for different aspects (risk, compliance, gaps, etc.).'}${isDashboardQuery ? (isSpecificComparison ? ` Focus ONLY on ${comparedRegulations.join(' and ')} systems. Provide side-by-side comparison between ${comparedRegulations.join(' and ')} only.` : ' Include regulation breakdown when discussing multiple systems. Use neutral, regulation-agnostic language throughout.') : ''}`;
 }
 
 /**
@@ -334,8 +392,13 @@ export function buildActionPrompt(
     : '\nNo workflows available.';
 
   const tasksInfo = context.pendingTasks && context.pendingTasks.length > 0
-    ? `\nPending Tasks:\n${context.pendingTasks.map(task => `- ${task}`).join('\n')}`
-    : '\nNo pending tasks.';
+    ? `\n**PENDING TASKS (${context.pendingTasks.length} tasks found in database):**\n${context.pendingTasks.map((task, idx) => `${idx + 1}. ${task}`).join('\n')}\n\nCRITICAL INSTRUCTIONS FOR PENDING TASKS QUESTIONS:
+- If the user asks "What tasks are pending?" or "What tasks are pending across all my systems?", you MUST explicitly list ALL the pending tasks shown above
+- Start your response with: "You have ${context.pendingTasks.length} pending tasks across all your systems:" followed by listing them
+- If the user asks "What should I prioritize next?", prioritize actions that address these specific pending tasks
+- Reference specific task names from the list above when providing recommendations
+- Do NOT provide generic workflow recommendations - focus on the actual pending tasks found`
+    : '\n**PENDING TASKS:** No pending tasks found in the database.\n\nNOTE: If the user asks about pending tasks, inform them that there are currently no pending tasks in the system.';
 
   const nextStepsInfo = context.nextSteps && context.nextSteps.length > 0
     ? `\nSuggested Next Steps:\n${context.nextSteps.map(step => `- ${step}`).join('\n')}`
