@@ -159,8 +159,54 @@ System Information:
       (context.confidenceLevel === 'low' ? '- Low: Critical information missing, analysis is limited\n' : '')
     : '';
 
+  // Detect if the message contains pronouns/references that need to be resolved
+  const hasPronouns = /\b(those|them|they|it|ones|two|three|these|this|their|its|they're|it's)\b/i.test(userMessage);
+  
   const historySection = conversationHistory 
-    ? `\n\n${conversationHistory}\n\nIMPORTANT: Use the previous conversation context ONLY if directly relevant to the current question. Do NOT let old conversations bias your response towards a specific regulation (e.g., EU AI Act). If the user is asking about ALL systems or overall compliance, focus on ALL regulations (EU, UK, MAS), not just what was discussed previously.`
+    ? `\n\n${conversationHistory}\n\nCRITICAL INSTRUCTIONS FOR USING CONVERSATION HISTORY:
+
+1. **RESOLVING PRONOUNS AND REFERENCES:**
+   ${hasPronouns ? `
+   ⚠️ THIS IS A FOLLOW-UP QUESTION WITH PRONOUNS/REFERENCES - YOU MUST RESOLVE THEM:
+   - The user's question contains pronouns/references (${userMessage.match(/\b(those|them|they|it|ones|two|three|these|this|their|its|they're|it's)\b/gi)?.join(', ') || 'detected'})
+   - You MUST look at the previous conversation above to understand what these pronouns refer to
+   - Explicitly state what you're referring to in your response
+   
+   Examples of pronoun resolution:
+   - "those systems" → "the 58 AI systems mentioned earlier" or "the systems we discussed"
+   - "them" → "the systems that need immediate attention" (from previous question)
+   - "they" → "the non-compliant systems" (from previous question)
+   - "ones" → "the high-risk systems" (from previous question)
+   - "two" → "EU AI Act systems vs UK AI Act systems" (if previous questions asked about both)
+   - "those two" → "EU AI Act systems (12 systems) and UK AI Act systems (20 systems)" (if both were discussed)
+   
+   ALWAYS start your response by explicitly stating what the pronouns refer to:
+   - GOOD: "Regarding the 58 AI systems we discussed earlier, here's their compliance status..."
+   - GOOD: "For the systems that need immediate attention (mentioned in the previous question), here are the main risks..."
+   - GOOD: "Comparing EU AI Act systems (12 systems) with UK AI Act systems (20 systems) that we discussed..."
+   - BAD: "Based on the available compliance assessments..." (doesn't reference previous context)
+   ` : `
+   - Use the previous conversation context to provide continuity
+   - If the user asks about something mentioned earlier, explicitly reference it
+   - Avoid repeating information already provided unless the user asks for clarification
+   `}
+
+2. **CONTEXT AWARENESS:**
+   - If the user asks a follow-up question, explicitly connect it to the previous conversation
+   - When answering, mention what was discussed previously (e.g., "As mentioned earlier, you have 58 systems...")
+   - Do NOT provide a completely fresh analysis - build on what was already discussed
+   - If the previous question mentioned specific systems, numbers, or statuses, reference them explicitly
+
+3. **REGULATION BIAS PREVENTION:**
+   - Do NOT let old conversations bias your response towards a specific regulation (e.g., EU AI Act)
+   - If the user is asking about ALL systems or overall compliance, focus on ALL regulations (EU, UK, MAS)
+   - However, if the previous conversation was about a specific regulation, you can reference that when relevant
+
+4. **COMPARISON QUESTIONS:**
+   - If the user asks to "compare those two" or "compare them", identify what "two" refers to from previous questions
+   - Look for questions about two different things (e.g., "EU systems" and "UK systems")
+   - Explicitly state what you're comparing: "Comparing EU AI Act systems (X systems) with UK AI Act systems (Y systems)..."
+   - Provide a side-by-side comparison with specific numbers and details from both`
     : '';
 
   // Detect if this is a compliance question
@@ -241,8 +287,22 @@ Instructions:
 - Never use absolute or final language
 - Do NOT make definitive legal or compliance claims
 - Recommend consulting experts for complex matters
-${conversationHistory ? '- Use previous conversation context ONLY if directly relevant to the current question. Do NOT let old conversations bias the response towards a specific regulation.' : ''}
-${conversationHistory ? '- If the user asks about a specific report or assessment mentioned earlier, reference that context' : ''}
+${conversationHistory ? `
+- CRITICAL: This is a follow-up question - you MUST use the conversation history above
+- ${hasPronouns ? 'RESOLVE PRONOUNS: The question contains pronouns/references - explicitly state what they refer to from previous conversations' : 'Reference previous conversations when relevant'}
+- Start your response by connecting to the previous conversation (e.g., "Regarding the systems we discussed earlier..." or "For the 58 AI systems mentioned previously...")
+- Do NOT provide a completely fresh analysis - build on what was already discussed
+- If previous questions mentioned specific numbers, systems, or statuses, reference them explicitly
+- Do NOT let old conversations bias the response towards a specific regulation unless that's what the user is asking about` : ''}
+${conversationHistory && hasPronouns ? `
+- PRONOUN RESOLUTION EXAMPLES:
+  * "those systems" → "the [number] AI systems mentioned earlier"
+  * "them" → "the [specific systems] from the previous question"
+  * "they" → "the [category] systems discussed previously"
+  * "ones" → "the [category] systems mentioned earlier"
+  * "two" → "the two [categories] discussed in previous questions"
+  * "those two" → "[first category] and [second category] from previous questions"
+- ALWAYS explicitly state what pronouns refer to at the start of your response` : ''}
 
 - Indicate confidence level of analysis:
   - High confidence: complete and recent system data available
@@ -281,8 +341,40 @@ export function buildActionPrompt(
     ? `\nSuggested Next Steps:\n${context.nextSteps.map(step => `- ${step}`).join('\n')}`
     : '\nNo specific next steps identified.';
 
+  // Detect if the message contains pronouns/references that need to be resolved
+  const hasPronouns = /\b(those|them|they|it|ones|two|three|these|this|their|its|they're|it's)\b/i.test(userMessage);
+  
   const historySection = conversationHistory 
-    ? `\n\n${conversationHistory}\n\nIMPORTANT: Use the previous conversation context to provide continuity. If the user is asking for next steps related to a previously discussed system or task, reference that context.`
+    ? `\n\n${conversationHistory}\n\nCRITICAL INSTRUCTIONS FOR USING CONVERSATION HISTORY:
+
+1. **RESOLVING PRONOUNS AND REFERENCES:**
+   ${hasPronouns ? `
+   ⚠️ THIS IS A FOLLOW-UP QUESTION WITH PRONOUNS/REFERENCES - YOU MUST RESOLVE THEM:
+   - The user's question contains pronouns/references (${userMessage.match(/\b(those|them|they|it|ones|two|three|these|this|their|its|they're|it's)\b/gi)?.join(', ') || 'detected'})
+   - You MUST look at the previous conversation above to understand what these pronouns refer to
+   - Explicitly state what you're referring to in your response
+   
+   Examples of pronoun resolution:
+   - "those systems" → "the [number] AI systems mentioned earlier" or "the systems we discussed"
+   - "them" → "the systems that need immediate attention" (from previous question)
+   - "they" → "the non-compliant systems" (from previous question)
+   - "ones" → "the high-risk systems" (from previous question)
+   - "two" → "EU AI Act systems vs UK AI Act systems" (if previous questions asked about both)
+   - "those two" → "EU AI Act systems (X systems) and UK AI Act systems (Y systems)" (if both were discussed)
+   
+   ALWAYS start your response by explicitly stating what the pronouns refer to:
+   - GOOD: "To compare EU AI Act systems (12 systems) with UK AI Act systems (20 systems) that we discussed earlier..."
+   - GOOD: "For the systems that need immediate attention (mentioned previously), here are the recommended actions..."
+   - BAD: "To compare the two AI systems..." (doesn't specify which two)
+   ` : `
+   - Use the previous conversation context to provide continuity
+   - If the user asks for actions related to something mentioned earlier, explicitly reference it
+   `}
+
+2. **CONTEXT AWARENESS:**
+   - If the user asks for actions related to a previously discussed system or topic, explicitly connect to that context
+   - When providing steps, mention what was discussed previously (e.g., "For the 58 systems we discussed earlier...")
+   - Do NOT provide generic actions - tailor them to what was specifically discussed`
     : '';
 
   return `${BASE_SAFETY_PROMPT}
@@ -304,7 +396,20 @@ Instructions:
 - Prioritize urgent or important actions
 - Be concise and direct
 - If no clear action is available, suggest exploring relevant features
-${conversationHistory ? '- Use previous conversation context to provide relevant next steps based on what was discussed earlier' : ''}
+${conversationHistory ? `
+- CRITICAL: This is a follow-up question - you MUST use the conversation history above
+- ${hasPronouns ? 'RESOLVE PRONOUNS: The question contains pronouns/references - explicitly state what they refer to from previous conversations at the start of your response' : 'Reference previous conversations when providing actions'}
+- Start your response by connecting to the previous conversation (e.g., "To compare EU AI Act systems (12 systems) with UK AI Act systems (20 systems) that we discussed earlier...")
+- Tailor your actions to what was specifically discussed in previous conversations
+- If previous questions mentioned specific systems, numbers, or categories, reference them explicitly in your action plan` : ''}
+${conversationHistory && hasPronouns ? `
+- PRONOUN RESOLUTION EXAMPLES FOR ACTION MODE:
+  * "those systems" → "the [number] AI systems mentioned earlier"
+  * "them" → "the [specific systems] from the previous question"
+  * "they" → "the [category] systems discussed previously"
+  * "two" → "the two [categories] discussed in previous questions"
+  * "those two" → "[first category] and [second category] from previous questions"
+- ALWAYS explicitly state what pronouns refer to at the start of your response before providing actions` : ''}
 
 Format your response as a clear action plan. Use numbered steps or bullet points for sequential actions.`;
 }

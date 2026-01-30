@@ -147,12 +147,23 @@ export async function chatHandler(req: Request, res: Response) {
     // Calculate user message tokens (needed for token budget calculations)
     const userMessageTokens = estimateTokens(message);
     
+    // Check for pronouns/references that indicate this is a follow-up question
+    // These words suggest the user is referring to something from previous conversation
+    const followUpIndicators = /\b(those|them|they|it|ones|two|three|these|this|their|its|they're|it's)\b/i;
+    const hasFollowUpIndicators = followUpIndicators.test(message.trim());
+    
     // Detect if this is a dashboard query asking for fresh data (doesn't need conversation history)
     // These queries ask for current state, not follow-up questions
+    // BUT: If the message contains follow-up indicators (pronouns/references), it's ALWAYS a follow-up
     const isDashboardFreshDataQuery = pageContext?.pageType === 'dashboard' && !pageContext?.systemId && 
+      !hasFollowUpIndicators && // If pronouns are present, it's a follow-up, not fresh data
       /^(how many|what.*total|show me|list|which systems|what.*compliance status|what.*overall)/i.test(message.trim());
     
     let conversationHistoryText = '';
+    
+    if (hasFollowUpIndicators) {
+      console.log(`🔗 [CHATBOT] Follow-up indicators detected in message - will use conversation history`);
+    }
     
     if (!isDashboardFreshDataQuery) {
       // Step 0.5: Get context first to calculate token budget accurately

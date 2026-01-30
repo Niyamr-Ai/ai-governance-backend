@@ -6,10 +6,13 @@
  * Features:
  * - Stores user queries and bot responses in Supabase
  * - Indexes conversations to Pinecone for semantic search
- * - Retrieves conversation history for context (last 3 messages by default)
+ * - HYBRID RETRIEVAL: Combines SQL (recent messages) + Pinecone (semantic search of older conversations)
+ * - Retrieves conversation history for context (last 3 messages from SQL + top 5 semantically relevant from Pinecone)
  * - Supports session management (multiple conversation sessions per org)
  * - Tenant isolation via org_id
  * - System association for report-related conversations
+ * - Automatic deduplication of combined results
+ * - Token budget management for combined history
  * 
  * Based on doc-intel-backend implementation, adapted for ai-governance architecture.
  */
@@ -18,7 +21,7 @@ import { supabaseAdmin } from '../../../src/lib/supabase';
 import type { ChatbotMode, PageContext } from '../../../types/chatbot';
 import { Pinecone } from '@pinecone-database/pinecone';
 import { OpenAI } from 'openai';
-import { getChatHistoryContextString } from '../chat-history-rag-service';
+import { getChatHistoryContextString, getChatHistoryContext } from '../chat-history-rag-service';
 import { estimateTokens, truncateHistoryText, truncateHistoryToFitBudget } from './token-utils';
 
 const PINECONE_API_KEY = process.env.PINECONE_API_KEY;
@@ -423,14 +426,14 @@ function needsSemanticSearch(userQuery: string): boolean {
 
 /**
  * Get recent chat history formatted for prompt inclusion
- * Uses hybrid approach: SQL for recent messages + RAG for semantic search when needed
+ * Uses TRUE HYBRID approach: SQL for recent messages + Pinecone RAG for semantic search of older conversations
  * Automatically truncates to fit within token budget
  * 
  * @param orgId - Organization ID
  * @param sessionId - Session ID (optional)
  * @param systemId - Optional system ID filter
- * @param limit - Number of recent messages (default: 3)
- * @param userQuery - Current user query (for semantic search detection)
+ * @param limit - Number of recent messages from SQL (default: 3)
+ * @param userQuery - Current user query (for semantic search)
  * @param tokenBudget - Maximum tokens allowed for history (optional, will use all available if not provided)
  * @returns Promise<string> - Formatted conversation history string (truncated if needed)
  */
@@ -444,73 +447,102 @@ export async function getFormattedChatHistory(
 ): Promise<string> {
   const sessionIdToUse = sessionId || 'default';
   
-  // Check if semantic search is needed
-  const useSemanticSearch = userQuery && needsSemanticSearch(userQuery);
+  // Step 1: Always get recent messages via SQL (for chronological continuity)
+  console.log(`[CHAT HISTORY] 📋 Step 1: Retrieving recent messages via SQL (limit: ${limit})`);
+  let sqlHistory = await getChatHistory(orgId, sessionIdToUse, systemId, limit);
+  console.log(`[CHAT HISTORY] ✅ Retrieved ${sqlHistory.length} recent messages from SQL`);
   
-  if (useSemanticSearch) {
-    console.log(`[CHAT HISTORY] 🔍 Semantic search detected - using RAG for chat history retrieval`);
+  // Step 2: Get semantically relevant older conversations via Pinecone (if user query provided)
+  let pineconeHistory: Array<{
+    user_query: string;
+    bot_response: string;
+    created_at?: string;
+  }> = [];
+  
+  if (userQuery && userQuery.trim()) {
     try {
-      // Use RAG for semantic search over chat history
-      const ragContext = await getChatHistoryContextString(
+      console.log(`[CHAT HISTORY] 🔍 Step 2: Retrieving semantically relevant conversations via Pinecone`);
+      
+      // Get top 5 semantically relevant conversations (can be older than SQL results)
+      pineconeHistory = await getChatHistoryContext(
         userQuery,
         orgId,
         sessionIdToUse,
-        limit, // topK
+        5, // topK for semantic search
         systemId
       );
       
-      if (ragContext && ragContext !== 'No relevant chat history found.') {
-        console.log(`[CHAT HISTORY] ✅ Retrieved semantic chat history via RAG`);
-        let formattedHistory = `\n\n=== RELEVANT PREVIOUS CONVERSATION CONTEXT (Semantic Search) ===\n${ragContext}\n=== END OF RELEVANT CONVERSATION CONTEXT ===\n\n`;
-        
-        // Apply token budget if provided
-        if (tokenBudget !== undefined) {
-          const historyTokens = estimateTokens(formattedHistory);
-          console.log(`[CHAT HISTORY] 📊 Semantic history tokens: ${historyTokens} / budget: ${tokenBudget}`);
-          if (historyTokens > tokenBudget) {
-            formattedHistory = truncateHistoryText(formattedHistory, tokenBudget);
-            console.log(`[CHAT HISTORY] ✂️ Truncated semantic history to fit token budget`);
-          }
-        }
-        
-        return formattedHistory;
-      } else {
-        console.log(`[CHAT HISTORY] ℹ️ No relevant semantic matches found, falling back to SQL`);
-        // Fall through to SQL retrieval
-      }
+      console.log(`[CHAT HISTORY] ✅ Retrieved ${pineconeHistory.length} semantically relevant conversations from Pinecone`);
     } catch (error: any) {
-      console.error(`[CHAT HISTORY] ⚠️ RAG search failed, falling back to SQL:`, error.message);
-      // Fall through to SQL retrieval
+      console.error(`[CHAT HISTORY] ⚠️ Pinecone search failed (non-critical, continuing with SQL only):`, error.message);
+      // Continue with SQL results only
     }
   }
   
-  // Default: Use SQL for chronological recent messages
-  console.log(`[CHAT HISTORY] 📋 Using SQL retrieval for chronological chat history`);
-  let history = await getChatHistory(orgId, sessionIdToUse, systemId, limit);
-
-  if (history.length === 0) {
+  // Step 3: Combine and deduplicate results
+  // Create a map to track unique conversations (by user_query + bot_response hash)
+  const seenConversations = new Set<string>();
+  const combinedHistory: ChatHistoryEntry[] = [];
+  
+  // First, add SQL results (prioritize recent messages)
+  for (const entry of sqlHistory) {
+    const key = `${entry.user_query}|${entry.bot_response.substring(0, 100)}`;
+    if (!seenConversations.has(key)) {
+      seenConversations.add(key);
+      combinedHistory.push(entry);
+    }
+  }
+  
+  // Then, add Pinecone results (only if not already in SQL results)
+  for (const entry of pineconeHistory) {
+    const key = `${entry.user_query}|${entry.bot_response.substring(0, 100)}`;
+    if (!seenConversations.has(key)) {
+      seenConversations.add(key);
+      // Convert Pinecone result to ChatHistoryEntry format
+      combinedHistory.push({
+        id: '', // Pinecone entries don't have SQL IDs
+        org_id: orgId,
+        session_id: sessionIdToUse,
+        user_query: entry.user_query,
+        bot_response: entry.bot_response,
+        chatbot_mode: 'SYSTEM_ANALYSIS' as ChatbotMode, // Default, could be improved
+        system_id: systemId,
+        created_at: entry.created_at || new Date().toISOString(),
+      });
+    }
+  }
+  
+  console.log(`[CHAT HISTORY] 🔗 Step 3: Combined ${sqlHistory.length} SQL + ${pineconeHistory.length} Pinecone = ${combinedHistory.length} unique conversations (after deduplication)`);
+  
+  if (combinedHistory.length === 0) {
     return '';
   }
-
-  // Apply token budget truncation if provided
+  
+  // Step 4: Sort by created_at (most recent first) to maintain chronological order
+  combinedHistory.sort((a, b) => {
+    const dateA = new Date(a.created_at).getTime();
+    const dateB = new Date(b.created_at).getTime();
+    return dateB - dateA; // Descending (newest first)
+  });
+  
+  // Step 5: Apply token budget truncation if provided
   if (tokenBudget !== undefined && tokenBudget > 0) {
     const historyTokens = estimateTokens(
-      history.map(e => `User: ${e.user_query}\nAssistant: ${e.bot_response}`).join('\n\n')
+      combinedHistory.map(e => `User: ${e.user_query}\nAssistant: ${e.bot_response}`).join('\n\n')
     );
-    console.log(`[CHAT HISTORY] 📊 SQL history tokens: ${historyTokens} / budget: ${tokenBudget}`);
+    console.log(`[CHAT HISTORY] 📊 Combined history tokens: ${historyTokens} / budget: ${tokenBudget}`);
     
     if (historyTokens > tokenBudget) {
-      const originalLength = history.length;
+      const originalLength = combinedHistory.length;
       // Convert to simple format for truncation (maintains order)
-      const simpleHistory = history.map(e => ({ user_query: e.user_query, bot_response: e.bot_response }));
+      const simpleHistory = combinedHistory.map(e => ({ user_query: e.user_query, bot_response: e.bot_response }));
       const truncatedSimple = truncateHistoryToFitBudget(simpleHistory, tokenBudget);
       
       // Map back: keep only entries that match truncated results (in order)
-      // Since truncation maintains order, we can use index matching
       const truncatedHistory: ChatHistoryEntry[] = [];
-      for (let i = 0; i < truncatedSimple.length && i < history.length; i++) {
+      for (let i = 0; i < truncatedSimple.length && i < combinedHistory.length; i++) {
         const truncatedEntry = truncatedSimple[i];
-        const originalEntry = history[i];
+        const originalEntry = combinedHistory[i];
         // Update bot_response if it was truncated
         if (originalEntry.user_query === truncatedEntry.user_query) {
           truncatedHistory.push({
@@ -519,18 +551,30 @@ export async function getFormattedChatHistory(
           });
         }
       }
-      history = truncatedHistory;
-      console.log(`[CHAT HISTORY] ✂️ Truncated SQL history from ${originalLength} to ${history.length} entries to fit token budget`);
+      combinedHistory.length = 0;
+      combinedHistory.push(...truncatedHistory);
+      console.log(`[CHAT HISTORY] ✂️ Truncated combined history from ${originalLength} to ${combinedHistory.length} entries to fit token budget`);
     }
   }
-
-  const formatted = history.map((entry, index) => {
-    return `Previous Conversation ${index + 1}:
+  
+  // Step 6: Format the combined history
+  const sqlCount = sqlHistory.length;
+  const pineconeCount = combinedHistory.length - sqlCount;
+  
+  const formatted = combinedHistory.map((entry, index) => {
+    const source = sqlHistory.some(e => e.user_query === entry.user_query && e.bot_response === entry.bot_response) 
+      ? ' (Recent)' 
+      : ' (Semantically Relevant)';
+    return `Previous Conversation ${index + 1}${source}:
 User: ${entry.user_query}
 Assistant: ${entry.bot_response}`;
   }).join('\n\n');
 
-  return `\n\n=== PREVIOUS CONVERSATION CONTEXT (Last ${history.length} messages) ===\n${formatted}\n=== END OF PREVIOUS CONVERSATION CONTEXT ===\n\n`;
+  const sourceInfo = pineconeCount > 0 
+    ? `Hybrid: ${sqlCount} recent + ${pineconeCount} semantically relevant`
+    : `${sqlCount} recent messages`;
+  
+  return `\n\n=== PREVIOUS CONVERSATION CONTEXT (${sourceInfo}) ===\n${formatted}\n=== END OF PREVIOUS CONVERSATION CONTEXT ===\n\n`;
 }
 
 /**
