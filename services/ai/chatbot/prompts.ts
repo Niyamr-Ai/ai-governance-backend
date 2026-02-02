@@ -146,7 +146,7 @@ System Information:
 
   const assessmentsInfo = context.assessments && context.assessments.length > 0
     ? `\nRecent Assessments:\n${JSON.stringify(context.assessments, null, 2)}`
-    : '\nNo assessments found.';
+    : '\n⚠️ No assessments found for this system. The system exists but no compliance assessments have been completed yet.';
 
   const gapsInfo = context.gaps && context.gaps.length > 0
     ? `\nIdentified Gaps:\n${context.gaps.map(gap => `- ${gap}`).join('\n')}`
@@ -212,6 +212,15 @@ System Information:
   // Detect if this is a compliance question
   const isComplianceQuestion = /(are we|am i|is (my|our)|compliance|compliant|comply|do we meet|what.*compliance)/i.test(userMessage);
   
+  // Detect if this is asking about which regulations the system needs to comply with
+  const isRegulationListQuestion = /(what regulations|which regulations|what.*comply|which.*comply|regulations.*need|regulations.*required)/i.test(userMessage);
+  
+  // Detect if this is asking about risk assessment completion (distinct from compliance assessment)
+  const isRiskAssessmentCompletionQuestion = /(has.*completed.*risk assessment|risk assessment.*completed|completed.*risk assessment|has.*risk assessment)/i.test(userMessage);
+  
+  // Detect if this is asking about risk score (numerical value)
+  const isRiskScoreQuestion = /(what.*risk score|overall risk score|risk score|composite risk score)/i.test(userMessage);
+  
   const complianceInstructions = isComplianceQuestion ? `
 CRITICAL: This is a compliance status question. Provide a DIRECT, CLEAR answer first, then supporting details.
 
@@ -232,6 +241,150 @@ Example Response Structure:
 **Confidence Level:** [High/Medium/Low] - [explanation]
 
 [Additional context and recommendations]"
+` : '';
+
+  const regulationListInstructions = isRegulationListQuestion ? `
+CRITICAL: This question asks about which regulations the system needs to comply with.
+
+Answer Format for Regulation List Questions:
+1. **List ALL regulations for which assessments exist**: Check the assessments array in the context - it contains assessments for EU, UK, and/or MAS
+2. **Be explicit**: List each regulation type (EU AI Act, UK AI Act, MAS Guidelines) that has an assessment
+3. **Clarify scope**: State that this is based on existing compliance assessments for this system
+4. **Optional note**: If only one regulation is found, you can mention that if the system operates in other jurisdictions, it may need to comply with additional regulations
+
+Example Response Structure:
+"Based on the available compliance assessments for this system, it needs to comply with:
+- [Regulation 1] (assessment exists)
+- [Regulation 2] (assessment exists)
+[If only one regulation]: Note: If this system operates in other jurisdictions (e.g., EU, Singapore), it may need to comply with additional regulations (EU AI Act, MAS Guidelines)."
+
+IMPORTANT: Check the assessments array in the context - it will show which regulations have assessments (EU, UK, MAS).
+` : '';
+
+  const riskAssessmentInstructions = isRiskAssessmentCompletionQuestion ? `
+CRITICAL: This question asks about RISK ASSESSMENT completion, which is DISTINCT from compliance assessments.
+
+IMPORTANT DISTINCTION:
+- **Compliance Assessments** (EU/UK/MAS): Evaluate regulatory compliance with specific frameworks. These assess whether the system meets regulatory requirements.
+- **Risk Assessments** (Automated Risk Assessment): Comprehensive risk scoring across multiple dimensions (Technical, Operational, Legal/Regulatory, Ethical/Societal, Business). These provide numerical risk scores and overall risk levels.
+
+Answer Format for Risk Assessment Completion Questions:
+1. **Check the context for "Automated Risk Assessment" section**: This will show if a risk assessment exists
+2. **Be explicit about the distinction**: 
+   - If automated risk assessment exists: "Yes, this system has completed an automated risk assessment. [Details]"
+   - If only compliance assessments exist: "This system has completed compliance assessments ([list frameworks]), but no automated risk assessment has been generated yet. Compliance assessments evaluate regulatory compliance, while risk assessments provide comprehensive risk scoring across multiple dimensions."
+3. **Provide details**: If risk assessment exists, include assessment date, composite score, and risk level
+
+Example Response Structure:
+"Regarding risk assessment completion for this system:
+- **Automated Risk Assessment**: [Completed/Not Completed]
+  - [If completed]: Assessed on [date], Composite Score: [X]/10, Overall Risk Level: [level]
+  - [If not completed]: No automated risk assessment found. The system has compliance assessments ([frameworks]) which evaluate regulatory compliance, but a comprehensive risk assessment has not been generated yet.
+- **Compliance Assessments**: [List existing compliance assessments]"
+
+IMPORTANT: Check the context for "Automated Risk Assessment" section - it will show the status and details if available.
+` : '';
+
+  const riskScoreInstructions = isRiskScoreQuestion ? `
+CRITICAL: This question asks about RISK SCORE (numerical value), which comes from Automated Risk Assessments.
+
+IMPORTANT:
+- **Risk Score** = Numerical value from automated risk assessment (composite_score, typically 1-10 scale)
+- **Risk Level** = Categorical value (Low, Medium, High, Critical) from compliance assessments
+- If automated risk assessment exists, provide the COMPOSITE SCORE (numerical) and individual dimension scores
+- If only compliance assessments exist, provide the RISK LEVEL (categorical) and note that a numerical risk score requires an automated risk assessment
+
+Answer Format for Risk Score Questions:
+1. **Check the context for "Automated Risk Assessment" section**: This will show if numerical scores are available
+2. **Provide numerical scores if available**: Composite score and individual dimension scores (Technical, Operational, Legal/Regulatory, Ethical/Societal, Business)
+3. **If only compliance assessments exist**: Provide risk level from compliance assessment and note that numerical scores require an automated risk assessment
+
+Example Response Structure:
+"[If automated risk assessment exists]:
+The overall risk score for this system is [X]/10 (composite score).
+- Technical Risk: [X]/10
+- Operational Risk: [X]/10
+- Legal/Regulatory Risk: [X]/10
+- Ethical/Societal Risk: [X]/10
+- Business Risk: [X]/10
+Overall Risk Level: [level]
+
+[If only compliance assessments exist]:
+This system has a risk level of [Low/Medium/High] based on compliance assessments ([frameworks]). However, no automated risk assessment with numerical scores has been generated yet. An automated risk assessment would provide a composite risk score (1-10 scale) across multiple dimensions."
+` : '';
+
+  // Detect documentation queries
+  const isDocumentationQuestion = /(what.*documentation|documentation.*exists|documentation.*generated|has.*documentation|what.*evidence|evidence.*uploaded|what.*documents|documents.*for this system)/i.test(userMessage);
+
+  const documentationInstructions = isDocumentationQuestion ? `
+CRITICAL: This question asks about ACTUAL DOCUMENTATION RECORDS stored in the database.
+
+IMPORTANT:
+- **Actual Documentation Records**: Check the context for "ACTUAL DOCUMENTATION RECORDS FOR THIS SYSTEM" section - this shows real documentation records from the database
+- **Documentation Types**: Each record includes document_type (e.g., "Compliance Summary", "Risk Assessment Report"), regulation_type (EU AI Act, UK AI Act, MAS), status, version, and creation date
+- **If documentation exists**: List the actual documentation records with their details (type, regulation, status, version, date)
+- **If no documentation exists**: State clearly that no documentation records were found in the database and suggest generating documentation
+
+Answer Format for Documentation Questions:
+1. **Check the context for "ACTUAL DOCUMENTATION RECORDS FOR THIS SYSTEM" section**: This will show actual documentation records from the database
+2. **List actual records**: If documentation exists, list each record with:
+   - Document Type (e.g., "Compliance Summary", "Risk Assessment Report")
+   - Regulation Type (EU AI Act, UK AI Act, MAS)
+   - Status (e.g., "Generated", "Draft")
+   - Version number
+   - Creation date
+3. **Be explicit**: If no records are found, state "No documentation records found in the database for this system"
+4. **Suggest action**: If no documentation exists, recommend using the "Generate Compliance Documentation" workflow
+
+Example Response Structure:
+"If documentation exists:
+- **Documentation Records Found**: [Number] documentation record(s) found for this system:
+  1. [Document Type] ([Regulation]) - Status: [Status], Version: [Version], Created: [Date]
+  2. [Document Type] ([Regulation]) - Status: [Status], Version: [Version], Created: [Date]
+
+If no documentation exists:
+- **Documentation Status**: No documentation records found in the database for this system. Documentation can be generated using the "Generate Compliance Documentation" workflow."
+
+IMPORTANT: Use the "ACTUAL DOCUMENTATION RECORDS FOR THIS SYSTEM" section from the context - do NOT infer documentation types from compliance assessment data. Only list actual documentation records that exist in the database.
+` : '';
+
+  // Detect system-to-system comparison queries (distinct from regulation comparison)
+  const isSystemComparisonQuestion = /(compare.*other systems|compare to.*other|more or less risky than.*other|how does.*compare|compare.*systems)/i.test(userMessage);
+
+  const comparisonInstructions = isSystemComparisonQuestion ? `
+CRITICAL: This question asks to COMPARE this system to OTHER SYSTEMS in the user's organization.
+
+IMPORTANT:
+- **Comparison Data**: Check the context for "COMPARISON DATA - ALL OTHER SYSTEMS IN YOUR ORGANIZATION" section - this shows actual data from all other systems
+- **Use Actual Data**: If comparison data exists, use it to provide specific comparisons (e.g., "This system has Low risk, while 3 of your other systems have High risk")
+- **Risk Comparison**: Compare risk levels (Low, Medium, High, Critical, Prohibited) between this system and others
+- **Compliance Comparison**: Compare compliance status (Compliant, Partially Compliant, Non-Compliant) between this system and others
+- **Be Specific**: Reference actual numbers and distributions from the comparison data (e.g., "Out of your 5 other systems, 2 are High-risk, while this system is Low-risk")
+- **If no other systems**: If the comparison data shows no other systems exist, state that clearly
+
+Answer Format for Comparison Questions:
+1. **Check the context for "COMPARISON DATA" section**: This will show all other systems in the organization
+2. **Compare risk levels**: State how this system's risk compares to others (e.g., "This system is Low-risk, while 2 of your other systems are High-risk")
+3. **Compare compliance status**: State how this system's compliance compares to others (e.g., "This system is Partially Compliant, while 3 of your other systems are Compliant")
+4. **Provide specific numbers**: Use the actual counts from the comparison data
+5. **If no comparison data**: State that no other systems were found for comparison
+
+Example Response Structure:
+"If comparison data exists:
+- **Risk Comparison**: This system has [Risk Level] risk. Out of your [X] other systems:
+  - [Y] system(s) have [Risk Level 1]
+  - [Z] system(s) have [Risk Level 2]
+  - This system is [more/less/equally] risky compared to the majority of your other systems.
+
+- **Compliance Comparison**: This system has [Compliance Status] status. Out of your [X] other systems:
+  - [Y] system(s) are [Compliance Status 1]
+  - [Z] system(s) are [Compliance Status 2]
+  - This system is [better/worse/similar] compared to your other systems.
+
+If no comparison data exists:
+- **Comparison Status**: No other systems found in your organization. This is the only system registered, so no comparison is possible."
+
+IMPORTANT: Use the "COMPARISON DATA - ALL OTHER SYSTEMS IN YOUR ORGANIZATION" section from the context - do NOT make generic statements about "typical systems" or "other systems in general". Use the actual data from the user's organization.
 ` : '';
 
   // Detect if this is a dashboard-level query (organization-wide, not single system)
@@ -314,6 +467,11 @@ ${historySection}
 User Question: "${userMessage}"
 
 ${complianceInstructions}
+${regulationListInstructions}
+${riskAssessmentInstructions}
+${riskScoreInstructions}
+${documentationInstructions}
+${comparisonInstructions}
 ${dashboardInstructions}
 
 Instructions:
@@ -321,12 +479,32 @@ Instructions:
     ? (isSpecificComparison 
         ? `This is a dashboard query requesting a comparison between ${comparedRegulations.join(' and ')} systems ONLY. Focus ONLY on ${comparedRegulations.join(' and ')} systems. Do NOT include other regulations (${comparedRegulations.includes('EU') ? '' : 'EU'}${comparedRegulations.includes('UK') ? '' : (comparedRegulations.includes('EU') ? ', ' : '') + 'UK'}${comparedRegulations.includes('MAS') ? '' : (comparedRegulations.includes('EU') || comparedRegulations.includes('UK') ? ', ' : '') + 'MAS'}) in your response.`
         : 'This is a dashboard query - analyze ALL systems across ALL regulations (EU, UK, MAS). Do NOT focus only on EU AI Act.')
+    : isRiskAssessmentCompletionQuestion
+        ? 'For risk assessment completion questions, distinguish between compliance assessments (EU/UK/MAS) and automated risk assessments. Check the context for "Automated Risk Assessment" section to see if a risk assessment exists.'
+    : isRiskScoreQuestion
+        ? 'For risk score questions, provide numerical scores from automated risk assessment if available. If only compliance assessments exist, provide risk level and note that numerical scores require an automated risk assessment.'
+    : isRegulationListQuestion
+        ? 'For regulation list questions, list ALL regulations for which assessments exist in the context. Check the assessments array to see which regulations (EU, UK, MAS) have assessments for this system.'
+    : isDocumentationQuestion
+        ? 'For documentation questions, check the "ACTUAL DOCUMENTATION RECORDS FOR THIS SYSTEM" section in the context. List actual documentation records from the database with their details (type, regulation, status, version, date). If no records exist, state that clearly and suggest generating documentation.'
+    : isSystemComparisonQuestion
+        ? 'For system comparison questions, check the "COMPARISON DATA - ALL OTHER SYSTEMS IN YOUR ORGANIZATION" section in the context. Compare this system\'s risk level and compliance status to the actual other systems in the organization using specific numbers and distributions. If no other systems exist, state that clearly.'
     : isComplianceQuestion 
         ? 'For compliance questions, provide a DIRECT answer first, then supporting details.' 
         : 'Analyze the system based on available data'}
 - Be evidence-based and cautious in conclusions
 - Clearly state all assumptions
 - Explicitly mention missing data or limitations
+- **CRITICAL: If no assessments are found** (assessments array is empty or "No assessments found" message appears):
+  - State clearly: "No compliance assessments have been completed for this system yet"
+  - Suggest: "Please complete a compliance assessment to get accurate compliance status and risk analysis"
+  - Do NOT make up compliance status or risk levels
+  - Set confidence level to LOW
+- **CRITICAL: If assessment data is incomplete** (risk level is "Unknown", compliance status is "Unknown", or confidence level is LOW):
+  - State clearly what data is available
+  - Explicitly mention what information is missing
+  - Indicate that the analysis is based on partial/incomplete data
+  - Suggest completing the assessment to get a full analysis
 - ${isDashboardQuery 
     ? (isSpecificComparison 
         ? `Reference ONLY ${comparedRegulations.join(' and ')} regulations when discussing compliance. Provide side-by-side comparison between ${comparedRegulations.join(' and ')} only.`
@@ -391,10 +569,23 @@ export function buildActionPrompt(
     ? `\nAvailable Workflows:\n${context.availableWorkflows.map(wf => `- ${wf}`).join('\n')}`
     : '\nNo workflows available.';
 
+  // Detect if this is a dashboard query (tasks include system names) or system-specific query (tasks don't include system names)
+  const isDashboardQuery = context.pendingTasks && context.pendingTasks.length > 0 && 
+    context.pendingTasks.some(task => task.includes('(') && task.includes(')'));
+  const isSystemSpecificQuery = context.pendingTasks && context.pendingTasks.length > 0 && 
+    !isDashboardQuery;
+
   const tasksInfo = context.pendingTasks && context.pendingTasks.length > 0
-    ? `\n**PENDING TASKS (${context.pendingTasks.length} tasks found in database):**\n${context.pendingTasks.map((task, idx) => `${idx + 1}. ${task}`).join('\n')}\n\nCRITICAL INSTRUCTIONS FOR PENDING TASKS QUESTIONS:
+    ? `\n**PENDING TASKS (${context.pendingTasks.length} ${isDashboardQuery ? 'tasks found across all systems' : 'tasks found for this system'}):**\n${context.pendingTasks.map((task, idx) => `${idx + 1}. ${task}`).join('\n')}\n\nCRITICAL INSTRUCTIONS FOR PENDING TASKS QUESTIONS:
+${isDashboardQuery ? `
+- This is a DASHBOARD query - tasks are from multiple systems
 - If the user asks "What tasks are pending?" or "What tasks are pending across all my systems?", you MUST explicitly list ALL the pending tasks shown above
 - Start your response with: "You have ${context.pendingTasks.length} pending tasks across all your systems:" followed by listing them
+- Each task includes the system name and regulation in parentheses for context` : `
+- This is a SYSTEM-SPECIFIC query - tasks are for the current system only
+- If the user asks "What tasks are pending for this system?" or "What tasks are pending?", you MUST explicitly list the pending tasks shown above
+- Start your response with: "You have ${context.pendingTasks.length} pending task${context.pendingTasks.length > 1 ? 's' : ''} for this system:" followed by listing them
+- Do NOT say "across all your systems" - these tasks are specific to the current system`}
 - If the user asks "What should I prioritize next?", prioritize actions that address these specific pending tasks
 - Reference specific task names from the list above when providing recommendations
 - Do NOT provide generic workflow recommendations - focus on the actual pending tasks found`

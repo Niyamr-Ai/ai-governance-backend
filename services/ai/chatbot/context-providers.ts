@@ -205,12 +205,38 @@ export async function getExplainContext(
  * @returns Confidence level: high, medium, or low
  */
 function computeConfidenceLevel(context: SystemAnalysisContext): 'high' | 'medium' | 'low' {
-  // High confidence: Complete system data + recent assessments
+  // Low confidence: No assessments found
+  if (!context.assessments || context.assessments.length === 0) {
+    return 'low';
+  }
+
+  // Check if assessment data is incomplete (has Unknown or missing critical fields)
+  const hasIncompleteData = 
+    !context.riskLevel || 
+    context.riskLevel === 'Unknown' ||
+    !context.complianceStatus || 
+    context.complianceStatus === 'Unknown' ||
+    !context.systemName ||
+    context.systemName === 'Unknown';
+
+  // Low confidence: Assessments exist but critical fields are missing/Unknown
+  if (hasIncompleteData) {
+    return 'low';
+  }
+
+  // Medium confidence: Has assessments and basic info, but may have gaps
+  if (context.gaps && context.gaps.length > 0) {
+    return 'medium';
+  }
+
+  // High confidence: Complete system data + recent assessments + no major gaps
   if (
     context.systemName &&
     context.systemName !== 'Unknown' &&
     context.riskLevel &&
     context.riskLevel !== 'Unknown' &&
+    context.complianceStatus &&
+    context.complianceStatus !== 'Unknown' &&
     context.assessments &&
     context.assessments.length > 0
   ) {
@@ -218,15 +244,7 @@ function computeConfidenceLevel(context: SystemAnalysisContext): 'high' | 'mediu
   }
 
   // Medium confidence: Partial data available
-  if (
-    (context.systemName && context.systemName !== 'Unknown') ||
-    (context.riskLevel && context.riskLevel !== 'Unknown')
-  ) {
-    return 'medium';
-  }
-
-  // Low confidence: Missing critical information
-  return 'low';
+  return 'medium';
 }
 
 
@@ -646,8 +664,17 @@ ${allSystems.length > 0 ? allSystems.map(s => {
     // System attribute queries include questions about governance policy type, framework, risk level, etc.
     const isComplianceQuery = /(are we|am i|is (my|our)|compliance|compliant|comply|what.*compliance|what.*status|what are the|what is the|what.*in this system|what.*of this system)/i.test(userMessage);
     
+    // Check if this is a risk assessment query (distinct from compliance assessment)
+    const isRiskAssessmentQuery = /(has.*completed.*risk assessment|risk assessment.*completed|completed.*risk assessment|what.*risk score|overall risk score|risk score|automated risk assessment)/i.test(userMessage);
+    
+    // Check if this is a documentation query - should query actual documentation table
+    const isDocumentationQuery = /(what.*documentation|documentation.*exists|documentation.*generated|has.*documentation|what.*evidence|evidence.*uploaded|what.*documents|documents.*for this system)/i.test(userMessage);
+    
+    // Check if this is a comparison query - should fetch all systems for comparison
+    const isComparisonQuery = /(compare.*other systems|compare to.*other|more or less risky than.*other|how does.*compare|compare.*systems)/i.test(userMessage);
+    
     // For compliance queries, fetch directly from database (more accurate than RAG)
-    if (isComplianceQuery) {
+    if (isComplianceQuery || isRiskAssessmentQuery) {
       console.log(`[Context] 🔍 Compliance query detected - fetching all available compliance assessments directly from database`);
       
       const { data: systemData } = await supabase
@@ -696,20 +723,27 @@ ${allSystems.length > 0 ? allSystems.map(s => {
       
       if (ukData) {
         console.log(`[Context] ✅ Found UK assessment for system ${ukData.system_name}`);
+        // Handle both camelCase and snake_case field names
+        const ukRiskLevel = ukData.risk_level || ukData.riskLevel || 'Unknown';
+        const ukOverallAssessment = ukData.overall_assessment || ukData.overallAssessment || 'Unknown';
+        const ukSafetyAndSecurity = ukData.safety_and_security || ukData.safetyAndSecurity;
+        const ukTransparency = ukData.transparency;
+        const ukFairness = ukData.fairness;
+        
         complianceSummary += `**UK AI Act:**\n`;
-        complianceSummary += `- Risk Level: ${ukData.riskLevel || 'Unknown'}\n`;
-        complianceSummary += `- Overall Assessment: ${ukData.overallAssessment || 'Unknown'}\n`;
-        if (ukData.safetyAndSecurity?.missing && ukData.safetyAndSecurity.missing.length > 0) {
-          complianceSummary += `- Safety & Security Gaps: ${ukData.safetyAndSecurity.missing.join(', ')}\n`;
-          allGaps.push(...ukData.safetyAndSecurity.missing);
+        complianceSummary += `- Risk Level: ${ukRiskLevel}\n`;
+        complianceSummary += `- Overall Assessment: ${ukOverallAssessment}\n`;
+        if (ukSafetyAndSecurity?.missing && ukSafetyAndSecurity.missing.length > 0) {
+          complianceSummary += `- Safety & Security Gaps: ${ukSafetyAndSecurity.missing.join(', ')}\n`;
+          allGaps.push(...ukSafetyAndSecurity.missing);
         }
-        if (ukData.transparency?.missing && ukData.transparency.missing.length > 0) {
-          complianceSummary += `- Transparency Gaps: ${ukData.transparency.missing.join(', ')}\n`;
-          allGaps.push(...ukData.transparency.missing);
+        if (ukTransparency?.missing && ukTransparency.missing.length > 0) {
+          complianceSummary += `- Transparency Gaps: ${ukTransparency.missing.join(', ')}\n`;
+          allGaps.push(...ukTransparency.missing);
         }
-        if (ukData.fairness?.missing && ukData.fairness.missing.length > 0) {
-          complianceSummary += `- Fairness Gaps: ${ukData.fairness.missing.join(', ')}\n`;
-          allGaps.push(...ukData.fairness.missing);
+        if (ukFairness?.missing && ukFairness.missing.length > 0) {
+          complianceSummary += `- Fairness Gaps: ${ukFairness.missing.join(', ')}\n`;
+          allGaps.push(...ukFairness.missing);
         }
         complianceSummary += `\n`;
         allAssessments.push({ framework: 'UK', data: ukData });
@@ -717,10 +751,10 @@ ${allSystems.length > 0 ? allSystems.map(s => {
           systemName = ukData.system_name || systemData?.name || 'Unknown System';
         }
         if (!complianceStatus || complianceStatus === 'Unknown') {
-          complianceStatus = ukData.overallAssessment || 'Unknown';
+          complianceStatus = ukOverallAssessment;
         }
         if (!riskLevel || riskLevel === 'Unknown') {
-          riskLevel = ukData.riskLevel || 'Unknown';
+          riskLevel = ukRiskLevel;
         }
       }
       
@@ -782,6 +816,45 @@ ${allSystems.length > 0 ? allSystems.map(s => {
         console.log(`[Context] ⚠️ No compliance assessments found for system ${systemId}`);
       } else {
         console.log(`[Context] ✅ Found ${allAssessments.length} compliance assessment(s): ${allAssessments.map(a => a.framework).join(', ')}`);
+      }
+      
+      // If this is a risk assessment query, also check for automated risk assessments
+      if (isRiskAssessmentQuery) {
+        console.log(`[Context] 🔍 Risk assessment query detected - checking for automated risk assessments`);
+        const { data: automatedRiskAssessment, error: riskError } = await supabase
+          .from('automated_risk_assessments')
+          .select('*')
+          .eq('ai_system_id', systemId)
+          .order('assessed_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        if (riskError) {
+          console.error(`[Context] ❌ Error fetching automated risk assessment:`, riskError);
+        } else if (automatedRiskAssessment) {
+          console.log(`[Context] ✅ Found automated risk assessment (assessed at: ${automatedRiskAssessment.assessed_at})`);
+          complianceSummary += `\n**Automated Risk Assessment:**\n`;
+          complianceSummary += `- Status: Completed\n`;
+          complianceSummary += `- Assessed At: ${new Date(automatedRiskAssessment.assessed_at).toLocaleString()}\n`;
+          complianceSummary += `- Composite Risk Score: ${automatedRiskAssessment.composite_score}/10\n`;
+          complianceSummary += `- Overall Risk Level: ${automatedRiskAssessment.overall_risk_level}\n`;
+          complianceSummary += `- Technical Risk Score: ${automatedRiskAssessment.technical_risk_score}/10\n`;
+          complianceSummary += `- Operational Risk Score: ${automatedRiskAssessment.operational_risk_score}/10\n`;
+          complianceSummary += `- Legal/Regulatory Risk Score: ${automatedRiskAssessment.legal_regulatory_risk_score}/10\n`;
+          complianceSummary += `- Ethical/Societal Risk Score: ${automatedRiskAssessment.ethical_societal_risk_score}/10\n`;
+          complianceSummary += `- Business Risk Score: ${automatedRiskAssessment.business_risk_score}/10\n`;
+          if (automatedRiskAssessment.approval_status) {
+            complianceSummary += `- Approval Status: ${automatedRiskAssessment.approval_status}\n`;
+          }
+          complianceSummary += `\n`;
+        } else {
+          console.log(`[Context] ⚠️ No automated risk assessment found for system ${systemId}`);
+          complianceSummary += `\n**Automated Risk Assessment:**\n`;
+          complianceSummary += `- Status: Not Completed\n`;
+          complianceSummary += `- Note: This system has compliance assessments (${allAssessments.map(a => a.framework).join(', ')}) but no automated risk assessment has been generated yet.\n`;
+          complianceSummary += `- Compliance assessments evaluate regulatory compliance, while risk assessments provide comprehensive risk scoring across multiple dimensions.\n`;
+          complianceSummary += `\n`;
+        }
       }
       
       systemDescription = (systemData?.description || 'No description available') + complianceSummary;
@@ -931,6 +1004,163 @@ ${allSystems.length > 0 ? allSystems.map(s => {
         console.error('[Context] Error querying User System RAG:', userRagError);
         systemDescription = 'Error retrieving system data. Please ensure the system exists and you have access.';
         gaps.push('Unable to load system data');
+      }
+    }
+
+    // For documentation queries, fetch actual documentation records from database
+    if (isDocumentationQuery && systemId) {
+      console.log(`[Context] 📄 Documentation query detected - fetching actual documentation records from database`);
+      
+      try {
+        const { data: documentationRecords, error: docError } = await supabase
+          .from('compliance_documentation')
+          .select('*')
+          .eq('ai_system_id', systemId)
+          .eq('org_id', userId)
+          .order('created_at', { ascending: false });
+        
+        if (docError) {
+          console.error(`[Context] ❌ Error fetching documentation:`, docError);
+        } else if (documentationRecords && documentationRecords.length > 0) {
+          console.log(`[Context] ✅ Found ${documentationRecords.length} documentation record(s) for system ${systemId}`);
+          
+          let documentationSummary = `\n\n**ACTUAL DOCUMENTATION RECORDS FOR THIS SYSTEM:**\n\n`;
+          documentationRecords.forEach((doc: any, idx: number) => {
+            documentationSummary += `${idx + 1}. **${doc.document_type || 'Document'}** (${doc.regulation_type || 'Unknown Regulation'})\n`;
+            documentationSummary += `   - Status: ${doc.status || 'Unknown'}\n`;
+            documentationSummary += `   - Version: ${doc.version || 'N/A'}\n`;
+            documentationSummary += `   - Created: ${doc.created_at ? new Date(doc.created_at).toLocaleString() : 'Unknown'}\n`;
+            if (doc.ai_system_version) {
+              documentationSummary += `   - System Version: ${doc.ai_system_version}\n`;
+            }
+            if (doc.risk_assessment_version) {
+              documentationSummary += `   - Risk Assessment Version: ${doc.risk_assessment_version}\n`;
+            }
+            documentationSummary += `\n`;
+          });
+          
+          systemDescription += documentationSummary;
+        } else {
+          console.log(`[Context] ℹ️ No documentation records found for system ${systemId}`);
+          systemDescription += `\n\n**DOCUMENTATION STATUS:**\nNo documentation records found in the database for this system. Documentation may need to be generated using the "Generate Compliance Documentation" workflow.`;
+        }
+      } catch (docQueryError) {
+        console.error('[Context] Error querying documentation table:', docQueryError);
+        systemDescription += `\n\n**Note:** Unable to query documentation records at this time.`;
+      }
+    }
+
+    // For comparison queries, fetch all systems in the organization for comparison
+    if (isComparisonQuery && systemId && userId) {
+      console.log(`[Context] 🔄 Comparison query detected - fetching all systems in organization for comparison`);
+      
+      try {
+        // Fetch all systems from EU, UK, and MAS tables
+        const [euSystemsResult, ukSystemsResult, masSystemsResult] = await Promise.all([
+          supabase
+            .from('eu_ai_act_check_results')
+            .select('id, system_name, risk_tier, compliance_status')
+            .eq('org_id', userId),
+          supabase
+            .from('uk_ai_assessments')
+            .select('id, system_name, risk_level, compliance_status')
+            .eq('org_id', userId),
+          supabase
+            .from('mas_ai_risk_assessments')
+            .select('id, system_name, risk_level, compliance_status')
+            .eq('org_id', userId)
+        ]);
+        
+        const allSystems: any[] = [];
+        
+        // Process EU systems
+        if (euSystemsResult.data) {
+          euSystemsResult.data.forEach((sys: any) => {
+            if (sys.id !== systemId) { // Exclude current system
+              allSystems.push({
+                id: sys.id,
+                name: sys.system_name || `EU System ${sys.id.substring(0, 8)}`,
+                regulation: 'EU AI Act',
+                riskLevel: sys.risk_tier || 'Unknown',
+                complianceStatus: sys.compliance_status || 'Unknown'
+              });
+            }
+          });
+        }
+        
+        // Process UK systems
+        if (ukSystemsResult.data) {
+          ukSystemsResult.data.forEach((sys: any) => {
+            if (sys.id !== systemId) { // Exclude current system
+              allSystems.push({
+                id: sys.id,
+                name: sys.system_name || `UK System ${sys.id.substring(0, 8)}`,
+                regulation: 'UK AI Act',
+                riskLevel: sys.risk_level || 'Unknown',
+                complianceStatus: sys.compliance_status || 'Unknown'
+              });
+            }
+          });
+        }
+        
+        // Process MAS systems
+        if (masSystemsResult.data) {
+          masSystemsResult.data.forEach((sys: any) => {
+            if (sys.id !== systemId) { // Exclude current system
+              allSystems.push({
+                id: sys.id,
+                name: sys.system_name || `MAS System ${sys.id.substring(0, 8)}`,
+                regulation: 'MAS',
+                riskLevel: sys.risk_level || 'Unknown',
+                complianceStatus: sys.compliance_status || 'Unknown'
+              });
+            }
+          });
+        }
+        
+        if (allSystems.length > 0) {
+          console.log(`[Context] ✅ Found ${allSystems.length} other system(s) in organization for comparison`);
+          
+          let comparisonSummary = `\n\n**COMPARISON DATA - ALL OTHER SYSTEMS IN YOUR ORGANIZATION:**\n\n`;
+          comparisonSummary += `Total other systems: ${allSystems.length}\n\n`;
+          
+          // Group by risk level
+          const riskDistribution: { [key: string]: number } = {};
+          const complianceDistribution: { [key: string]: number } = {};
+          
+          allSystems.forEach((sys: any) => {
+            const risk = sys.riskLevel || 'Unknown';
+            const compliance = sys.complianceStatus || 'Unknown';
+            riskDistribution[risk] = (riskDistribution[risk] || 0) + 1;
+            complianceDistribution[compliance] = (complianceDistribution[compliance] || 0) + 1;
+          });
+          
+          comparisonSummary += `**Risk Level Distribution:**\n`;
+          Object.entries(riskDistribution).forEach(([level, count]) => {
+            comparisonSummary += `- ${level}: ${count} system(s)\n`;
+          });
+          
+          comparisonSummary += `\n**Compliance Status Distribution:**\n`;
+          Object.entries(complianceDistribution).forEach(([status, count]) => {
+            comparisonSummary += `- ${status}: ${count} system(s)\n`;
+          });
+          
+          comparisonSummary += `\n**Individual System Details:**\n`;
+          allSystems.forEach((sys: any, idx: number) => {
+            comparisonSummary += `${idx + 1}. **${sys.name}** (${sys.regulation})\n`;
+            comparisonSummary += `   - Risk Level: ${sys.riskLevel}\n`;
+            comparisonSummary += `   - Compliance Status: ${sys.complianceStatus}\n`;
+            comparisonSummary += `\n`;
+          });
+          
+          systemDescription += comparisonSummary;
+        } else {
+          console.log(`[Context] ℹ️ No other systems found in organization for comparison`);
+          systemDescription += `\n\n**COMPARISON DATA:**\nNo other systems found in your organization. This is the only system registered.`;
+        }
+      } catch (comparisonError) {
+        console.error('[Context] Error fetching systems for comparison:', comparisonError);
+        systemDescription += `\n\n**Note:** Unable to fetch other systems for comparison at this time.`;
       }
     }
 
