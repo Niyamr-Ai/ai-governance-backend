@@ -1,7 +1,7 @@
 {
   "private": true,
   "scripts": {
-    "dev": "nodemon --watch src --exec tsx src/server.ts",
+    "dev": "nodemon --watch src --watch services --watch types --watch middleware --exec tsx src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
     "ingest-regulations": "tsx scripts/ingest-regulations.ts",
@@ -17,6 +17,7 @@
     "@types/formidable": "^3.4.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^2.0.0",
+    "@types/pdfkit": "^0.17.4",
     "axios": "^1.13.2",
     "canvas": "^3.2.1",
     "cors": "^2.8.5",
@@ -30,6 +31,9 @@
     "openai": "^5.12.2",
     "pdf-parse": "^1.1.4",
     "pdfjs-dist": "^5.4.530",
+    "pdfkit": "^0.17.2",
+    "puppeteer": "^24.36.1",
+    "react-pdf": "^10.3.0",
     "redis": "^5.6.1",
     "tesseract.js": "^7.0.0",
     "zod": "^3.25.76"

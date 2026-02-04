@@ -100,29 +100,14 @@ if (!user_id) {
     const userId = user_id;
 
     const body = req.body;
-    const { system_name, ...answers } = body;
+    const { system_id, system_name, ...answers } = body;
     console.log(answers, "---x-x-x-x-x-x---");
+    console.log("[EU API] System ID:", system_id);
 
     const supabase = getSupabaseClient();
     const openai = getOpenAIClient();
 
-    // 1. Store answers in Supabase
-    const { data: storedAnswers, error: insertError } = await supabase
-      .from("eu_ai_act_answers")
-      .insert({
-        user_id: userId,
-        system_name: system_name || "Unnamed System",
-        answers: answers,
-      })
-      .select()
-      .single();
-
-    if (insertError) {
-      console.error("Insert error:", insertError);
-      return res.status(500).json({ error: "Failed to store answers" });
-    }
-
-    // 2. Analyze answers using AI
+    // 1. Analyze answers using AI
     const questions = {
       q1: "Does the AI system perform classification of people based on sensitive characteristics?",
       q2: "Does the AI system perform social scoring of individuals?",
@@ -197,11 +182,20 @@ Be precise and follow EU AI Act guidelines exactly.`;
       throw new Error("Failed to get AI response");
     }
 
+    // Strip markdown code fences if present (```json ... ```)
+    let cleanedResponse = aiResponse.trim();
+    if (cleanedResponse.startsWith('```')) {
+      // Remove opening ```json or ```
+      cleanedResponse = cleanedResponse.replace(/^```(?:json)?\s*\n?/, '');
+      // Remove closing ```
+      cleanedResponse = cleanedResponse.replace(/\n?```\s*$/, '');
+    }
+
     let analysis;
     try {
-      analysis = JSON.parse(aiResponse);
+      analysis = JSON.parse(cleanedResponse);
     } catch (parseError) {
-      console.error("Failed to parse AI response:", aiResponse);
+      console.error("Failed to parse AI response:", cleanedResponse);
       analysis = {
         classification: "Unknown",
         reasoning: "Analysis failed",
@@ -211,18 +205,52 @@ Be precise and follow EU AI Act guidelines exactly.`;
       };
     }
 
+    // 2. Map classification to risk_tier
+    const riskTierMap: Record<string, string> = {
+      "Unacceptable risk": "Prohibited",
+      "High-risk": "High-risk",
+      "Limited risk": "Limited-risk",
+      "Minimal risk": "Minimal-risk",
+      "Unknown": "Unknown"
+    };
+
+    const riskTier = riskTierMap[analysis.classification] || "Unknown";
+    const hasProhibitedPractices = (analysis.prohibited_practices_detected || []).length > 0;
+    const highRiskObligations = analysis.high_risk_obligations || [];
+    const hasAllHighRiskFulfilled = riskTier === "High-risk" && highRiskObligations.length === 0;
+
+    // Determine compliance status
+    let complianceStatus = "Compliant";
+    if (hasProhibitedPractices) {
+      complianceStatus = "Non-compliant";
+    } else if (riskTier === "High-risk" && highRiskObligations.length > 0) {
+      complianceStatus = "Partially compliant";
+    } else if (riskTier === "Prohibited") {
+      complianceStatus = "Non-compliant";
+    }
+
     // 3. Store compliance result
     const complianceResult = {
       user_id: userId,
+      system_id: system_id || null, // Link to ai_systems table for multi-jurisdiction support
       system_name: system_name || "Unnamed System",
-      classification: analysis.classification,
-      reasoning: analysis.reasoning,
-      high_risk_obligations: analysis.high_risk_obligations || [],
-      prohibited_practices_detected: analysis.prohibited_practices_detected || [],
-      recommendations: analysis.recommendations || [],
-      answers_id: storedAnswers.id,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      risk_tier: riskTier,
+      compliance_status: complianceStatus,
+      prohibited_practices_detected: hasProhibitedPractices,
+      high_risk_all_fulfilled: hasAllHighRiskFulfilled,
+      high_risk_missing: highRiskObligations,
+      transparency_required: false, // Will be determined by analysis if needed
+      transparency_missing: [],
+      monitoring_required: riskTier === "High-risk",
+      post_market_monitoring: false, // Default, can be updated later
+      incident_reporting: false, // Default, can be updated later
+      fria_completed: false, // Default, can be updated later
+      raw_answers: answers, // Store raw form answers
+      summary: analysis.reasoning || "", // Store reasoning as summary
+      reference: {
+        prohibited_practices: analysis.prohibited_practices_detected || [], // Store list of prohibited practices
+        riskTierBasis: analysis.reasoning || "",
+      },
     };
 
     const { data: complianceData, error: complianceError } = await supabase
@@ -239,7 +267,15 @@ Be precise and follow EU AI Act guidelines exactly.`;
     // 4. Return the compliance result
     return res.status(201).json({
       id: complianceData.id,
-      ...complianceResult,
+      system_id: complianceData.system_id,
+      system_name: complianceData.system_name,
+      risk_tier: complianceData.risk_tier,
+      compliance_status: complianceData.compliance_status,
+      prohibited_practices_detected: complianceData.prohibited_practices_detected,
+      high_risk_all_fulfilled: complianceData.high_risk_all_fulfilled,
+      high_risk_missing: complianceData.high_risk_missing,
+      reference: complianceData.reference || {},
+      created_at: complianceData.created_at,
     });
   } catch (err: any) {
     console.error("POST /compliance error:", err);

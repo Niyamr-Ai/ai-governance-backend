@@ -12,39 +12,46 @@ import pdf from 'pdf-parse';
 import { Pinecone } from '@pinecone-database/pinecone';
 import { OpenAI } from 'openai';
 
-// Load environment variables from .env.local
+// Load environment variables from .env.local or .env
 // tsx automatically loads .env.local, but we'll ensure it's loaded
 if (process.env.NODE_ENV !== 'production') {
-  try {
-    const envPath = path.resolve(process.cwd(), '.env.local');
-    if (fs.existsSync(envPath)) {
-      const envContent = fs.readFileSync(envPath, 'utf-8');
-      envContent.split('\n').forEach((line) => {
-        const trimmed = line.trim();
-        if (trimmed && !trimmed.startsWith('#')) {
-          const [key, ...valueParts] = trimmed.split('=');
-          if (key && valueParts.length > 0) {
-            const value = valueParts.join('=').trim().replace(/^["']|["']$/g, '');
-            if (!process.env[key.trim()]) {
-              process.env[key.trim()] = value;
+  // Try .env.local first, then .env
+  const envFiles = ['.env.local', '.env'];
+  
+  for (const envFile of envFiles) {
+    try {
+      const envPath = path.resolve(process.cwd(), envFile);
+      if (fs.existsSync(envPath)) {
+        console.log(`📄 Loading environment variables from ${envFile}`);
+        const envContent = fs.readFileSync(envPath, 'utf-8');
+        envContent.split('\n').forEach((line) => {
+          const trimmed = line.trim();
+          if (trimmed && !trimmed.startsWith('#')) {
+            const [key, ...valueParts] = trimmed.split('=');
+            if (key && valueParts.length > 0) {
+              const value = valueParts.join('=').trim().replace(/^["']|["']$/g, '');
+              if (!process.env[key.trim()]) {
+                process.env[key.trim()] = value;
+              }
             }
           }
-        }
-      });
+        });
+        break; // Stop after loading first file found
+      }
+    } catch (error) {
+      console.warn(`Warning: Could not load ${envFile}:`, error);
     }
-  } catch (error) {
-    console.warn('Warning: Could not load .env.local:', error);
   }
 }
 
 const PINECONE_API_KEY = process.env.PINECONE_API_KEY;
 if (!PINECONE_API_KEY) {
-  throw new Error('PINECONE_API_KEY is missing from .env.local');
+  throw new Error('PINECONE_API_KEY is missing from .env or .env.local file');
 }
 
 const OPEN_AI_KEY = process.env.OPEN_AI_KEY;
 if (!OPEN_AI_KEY) {
-  throw new Error('OPEN_AI_KEY is missing from .env.local');
+  throw new Error('OPEN_AI_KEY is missing from .env or .env.local file');
 }
 
 const pinecone = new Pinecone({ apiKey: PINECONE_API_KEY });
@@ -54,29 +61,27 @@ const openai = new OpenAI({ apiKey: OPEN_AI_KEY });
 interface RegulationFile {
   path: string;
   type: 'EU' | 'UK' | 'MAS';
-  indexName: string;
 }
+
+// Unified index name for all regulations
+const INDEX_NAME = 'regulations';
 
 const REGULATION_FILES: RegulationFile[] = [
   {
     path: path.join(process.cwd(), 'Regulations_files', 'eu_ai_act.pdf'),
     type: 'EU',
-    indexName: 'eu-ai-act',
   },
   {
     path: path.join(process.cwd(), 'Regulations_files', 'uk_act.pdf'),
     type: 'UK',
-    indexName: 'uk-ai-act',
   },
   {
     path: path.join(process.cwd(), 'Regulations_files', 'mas_act_1.pdf'),
     type: 'MAS',
-    indexName: 'mas-ai-act',
   },
   {
     path: path.join(process.cwd(), 'Regulations_files', 'mas_act_2.pdf'),
     type: 'MAS',
-    indexName: 'mas-ai-act',
   },
 ];
 
@@ -148,8 +153,8 @@ async function processRegulationFile(file: RegulationFile): Promise<number> {
     const chunks = chunkText(text);
     console.log(`   Created ${chunks.length} chunks`);
 
-    // Get Pinecone index
-    const index = pinecone.index(file.indexName);
+    // Get Pinecone index (unified regulations index)
+    const index = pinecone.index(INDEX_NAME);
 
     // Process chunks in batches to avoid rate limits
     const BATCH_SIZE = 10;
@@ -198,9 +203,10 @@ async function processRegulationFile(file: RegulationFile): Promise<number> {
  */
 async function ingestRegulations() {
   console.log('🚀 Starting regulation ingestion...\n');
+  console.log(`📋 Index: ${INDEX_NAME} (unified regulations index)`);
   console.log('📋 Files to process:');
   REGULATION_FILES.forEach((file) => {
-    console.log(`   - ${file.type}: ${path.basename(file.path)} → ${file.indexName}`);
+    console.log(`   - ${file.type}: ${path.basename(file.path)}`);
   });
   console.log('');
 
