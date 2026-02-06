@@ -28,12 +28,30 @@ export async function getRedTeaming(req: Request, res: Response) {
     const supabase = supabaseAdmin;
     const { attack_type, test_status, ai_system_id } = req.query;
 
-    // Build query
+    // Build query - try org_id first, fallback to tested_by
     let query = supabase
       .from("red_teaming_results")
       .select("*")
-      .eq("org_id", userId)
       .order("tested_at", { ascending: false });
+
+    // Try to filter by org_id first, fallback to tested_by if column doesn't exist
+    let useOrgId = true;
+    try {
+      // Test if org_id column exists by attempting a query
+      const testQuery = supabase.from("red_teaming_results").select("org_id").limit(1);
+      const { error: testError } = await testQuery;
+      if (testError && testError.message?.includes("org_id")) {
+        useOrgId = false;
+      }
+    } catch (e) {
+      useOrgId = false;
+    }
+
+    if (useOrgId) {
+      query = query.eq("org_id", userId);
+    } else {
+      query = query.eq("tested_by", userId);
+    }
 
     // Apply filters
     if (attack_type) {
@@ -63,7 +81,21 @@ export async function getRedTeaming(req: Request, res: Response) {
     const systemNames: Record<string, string> = {};
 
     if (systemIds.length > 0) {
-      // Check EU, UK, and MAS tables for system names
+      // First, try to get system names from ai_systems table
+      const { data: aiSystems } = await supabase
+        .from("ai_systems")
+        .select("id, name")
+        .in("id", systemIds);
+
+      if (aiSystems) {
+        aiSystems.forEach((sys: any) => {
+          if (sys.name) {
+            systemNames[sys.id] = sys.name;
+          }
+        });
+      }
+
+      // Also check EU, UK, and MAS tables for system names (as fallback)
       const [euSystems, ukSystems, masSystems] = await Promise.all([
         supabase
           .from("eu_ai_act_check_results")
@@ -79,9 +111,9 @@ export async function getRedTeaming(req: Request, res: Response) {
           .in("id", systemIds),
       ]);
 
-      // Map system IDs to names
+      // Map system IDs to names (only if not already found in ai_systems)
       [...(euSystems.data || []), ...(ukSystems.data || []), ...(masSystems.data || [])].forEach((sys: any) => {
-        if (sys.system_name) {
+        if (sys.system_name && !systemNames[sys.id]) {
           systemNames[sys.id] = sys.system_name;
         }
       });
@@ -174,18 +206,27 @@ export async function postRedTeaming(req: Request, res: Response) {
         );
 
         // Store result
+        const insertData: any = {
+          ai_system_id: ai_system_id,
+          attack_type: attack.type,
+          attack_prompt: attack.prompt,
+          system_response: systemResponse,
+          test_status: evaluation.status,
+          risk_level: evaluation.riskLevel,
+          failure_reason: evaluation.failureReason || null,
+          tested_by: userId,
+        };
+
+        // Add org_id if column exists
+        try {
+          insertData.org_id = userId;
+        } catch (e) {
+          // org_id column might not exist, skip it
+        }
+
         const { data: result, error: insertError } = await supabase
           .from("red_teaming_results")
-          .insert({
-            ai_system_id: ai_system_id,
-            attack_type: attack.type,
-            attack_prompt: attack.prompt,
-            system_response: systemResponse,
-            test_status: evaluation.status,
-            risk_level: evaluation.riskLevel,
-            failure_reason: evaluation.failureReason || null,
-            tested_by: userId,
-          })
+          .insert(insertData)
           .select()
           .single();
 
@@ -267,30 +308,36 @@ export async function executeTargetedRedTeaming(req: Request, res: Response) {
         const evaluation = evaluateTargetedResponse(attack, systemResponse);
 
         // Store result with enhanced metadata
+        const insertData: any = {
+          ai_system_id: ai_system_id,
+          attack_type: attack.type,
+          attack_prompt: attack.targetedPrompt || attack.prompt,
+          system_response: systemResponse,
+          test_status: evaluation.status,
+          risk_level: evaluation.riskLevel,
+          failure_reason: evaluation.failureReason || null,
+          tested_by: userId,
+          org_id: userId,
+        };
+
+        // Add metadata if column exists (JSONB column)
+        try {
+          insertData.metadata = {
+            original_attack: attack.name,
+            customization_level: attack.customization,
+            vulnerability_focus: attack.vulnerabilityFocus,
+            risk_factors: attack.riskFactors,
+            system_context_used: !!attack.systemContext,
+            targeted_test: true
+          };
+        } catch (e) {
+          // Metadata column might not exist, skip it
+          console.log("Metadata column not available, skipping");
+        }
+
         const { data: result, error: insertError } = await supabase
           .from("red_teaming_results")
-          .insert({
-            ai_system_id: ai_system_id,
-            attack_type: attack.type,
-            attack_prompt: attack.targetedPrompt || attack.prompt,
-            system_response: systemResponse,
-            test_status: evaluation.status,
-            risk_level: evaluation.riskLevel,
-            failure_reason: evaluation.failureReason || null,
-            tested_by: userId,
-            // TEMPORARY: org_id currently maps 1:1 to user_id.
-            // This will change when true organizations are introduced.
-            org_id: userId,
-            // Enhanced metadata for targeted tests
-            metadata: {
-              original_attack: attack.name,
-              customization_level: attack.customization,
-              vulnerability_focus: attack.vulnerabilityFocus,
-              risk_factors: attack.riskFactors,
-              system_context_used: !!attack.systemContext,
-              targeted_test: true
-            }
-          })
+          .insert(insertData)
           .select()
           .single();
 
@@ -311,27 +358,33 @@ export async function executeTargetedRedTeaming(req: Request, res: Response) {
 
         // Store failed test result
         try {
+          const failedInsertData: any = {
+            ai_system_id: ai_system_id,
+            attack_type: attack.type,
+            attack_prompt: attack.targetedPrompt || attack.prompt,
+            system_response: `Test execution failed: ${error.message}`,
+            test_status: 'FAIL',
+            risk_level: 'HIGH',
+            failure_reason: 'Test execution error',
+            tested_by: userId,
+            org_id: userId,
+          };
+
+          // Add metadata if column exists
+          try {
+            failedInsertData.metadata = {
+              original_attack: attack.name,
+              execution_error: true,
+              error_message: error.message,
+              targeted_test: true
+            };
+          } catch (e) {
+            // Metadata column might not exist, skip it
+          }
+
           await supabase
             .from("red_teaming_results")
-            .insert({
-              ai_system_id: ai_system_id,
-              attack_type: attack.type,
-              attack_prompt: attack.targetedPrompt || attack.prompt,
-              system_response: `Test execution failed: ${error.message}`,
-              test_status: 'FAIL',
-              risk_level: 'HIGH',
-              failure_reason: 'Test execution error',
-              tested_by: userId,
-              // TEMPORARY: org_id currently maps 1:1 to user_id.
-              // This will change when true organizations are introduced.
-              org_id: userId,
-              metadata: {
-                original_attack: attack.name,
-                execution_error: true,
-                error_message: error.message,
-                targeted_test: true
-              }
-            });
+            .insert(failedInsertData);
         } catch (storeError) {
           console.error("Error storing failed test result:", storeError);
         }

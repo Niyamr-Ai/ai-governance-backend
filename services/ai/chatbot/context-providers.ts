@@ -701,6 +701,25 @@ ${allSystems.length > 0 ? allSystems.map(s => {
       
       if (euData) {
         console.log(`[Context] ✅ Found EU assessment for system ${euData.system_name}`);
+        
+        // Check if we're on a detailed compliance page and fetch detailed assessment
+        const isDetailedPage = pageContext.additionalMetadata?.pathname?.includes('/compliance/detailed/');
+        let detailedAssessment = null;
+        
+        if (isDetailedPage && systemId) {
+          console.log(`[Context] 🔍 Detected detailed compliance page, fetching detailed assessment...`);
+          const { data: detailedData } = await supabase
+            .from('ai_system_compliance')
+            .select('*')
+            .eq('compliance_id', systemId)
+            .maybeSingle();
+          
+          if (detailedData) {
+            detailedAssessment = detailedData;
+            console.log(`[Context] ✅ Found detailed assessment data`);
+          }
+        }
+        
         complianceSummary += `**EU AI Act:**\n`;
         complianceSummary += `- Risk Tier: ${euData.risk_tier || 'Unknown'}\n`;
         complianceSummary += `- Compliance Status: ${euData.compliance_status || 'Unknown'}\n`;
@@ -708,8 +727,20 @@ ${allSystems.length > 0 ? allSystems.map(s => {
           complianceSummary += `- Missing High-Risk Obligations: ${euData.high_risk_missing.join(', ')}\n`;
           allGaps.push(...euData.high_risk_missing);
         }
+        
+        // Add detailed assessment information if available
+        if (detailedAssessment) {
+          complianceSummary += `- **Detailed Assessment Available:** Yes\n`;
+          complianceSummary += `- Risk Management: ${detailedAssessment.documented_risk_management_system ? 'Fulfilled' : 'Not Fulfilled'}\n`;
+          complianceSummary += `- Data Governance: ${detailedAssessment.data_relevance_and_quality ? 'Fulfilled' : 'Not Fulfilled'}\n`;
+          complianceSummary += `- Technical Documentation: ${detailedAssessment.technical_documentation_available ? 'Fulfilled' : 'Not Fulfilled'}\n`;
+          complianceSummary += `- Transparency: ${detailedAssessment.operation_transparency ? 'Fulfilled' : 'Not Fulfilled'}\n`;
+          complianceSummary += `- Security: ${detailedAssessment.accuracy_robustness_cybersecurity ? 'Fulfilled' : 'Not Fulfilled'}\n`;
+          complianceSummary += `- Conformity Assessment: ${detailedAssessment.conformity_assessment_completed ? 'Fulfilled' : 'Not Fulfilled'}\n`;
+        }
+        
         complianceSummary += `\n`;
-        allAssessments.push({ framework: 'EU', data: euData });
+        allAssessments.push({ framework: 'EU', data: euData, detailed: detailedAssessment });
         if (!systemName || systemName === 'Unknown System') {
           systemName = euData.system_name || systemData?.name || 'Unknown System';
         }
