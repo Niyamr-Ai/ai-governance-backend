@@ -335,6 +335,7 @@ export async function getDetailedCompliance(req: Request, res: Response) {
 
     const supabase = getSupabaseClient();
 
+    // Fetch detailed compliance data
     const { data, error } = await supabase
       .from("ai_system_compliance")
       .select("*")
@@ -350,7 +351,40 @@ export async function getDetailedCompliance(req: Request, res: Response) {
       return res.status(404).json({ message: "No record found for the given id" });
     }
 
-    return res.status(200).json(data);
+    // Fetch system_name and created_at from eu_ai_act_check_results table (where the compliance assessment is stored)
+    const { data: complianceData, error: complianceError } = await supabase
+      .from("eu_ai_act_check_results")
+      .select("system_name, system_id, created_at")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (complianceError) {
+      console.error("Error fetching system_name:", complianceError);
+    }
+
+    let systemName = complianceData?.system_name || null;
+
+    // If system_name is missing but system_id exists, fetch from ai_systems table
+    if (!systemName && complianceData?.system_id) {
+      const { data: systemData, error: systemError } = await supabase
+        .from("ai_systems")
+        .select("name")
+        .eq("id", complianceData.system_id)
+        .maybeSingle();
+
+      if (!systemError && systemData?.name) {
+        systemName = systemData.name;
+      }
+    }
+
+    // Add system_name and assessment_date (from created_at) to the response
+    const responseData = {
+      ...data,
+      system_name: systemName || null,
+      assessment_date: complianceData?.created_at || data.created_at || null,
+    };
+
+    return res.status(200).json(responseData);
   } catch (err) {
     console.error("GET /compliance/detailed error:", err);
     return res.status(500).json({ message: "Internal server error" });
