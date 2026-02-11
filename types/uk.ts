@@ -2,6 +2,7 @@ export interface UKAssessmentResult {
   id: string;
   user_id: string | null;
   created_at: string;
+  system_id?: string | null;
   risk_level: UKRiskLevel;
   overall_assessment: UKComplianceStatus;
   safety_and_security: UKPrincipleStatus;
