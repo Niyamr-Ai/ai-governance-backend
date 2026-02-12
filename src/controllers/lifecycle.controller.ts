@@ -126,6 +126,9 @@ export async function updateLifecycle(req: Request, res: Response) {
     const complianceData: SystemComplianceData = {
       type: 'EU AI Act',
       accountable_person: (euSystem as any).accountable_person,
+      risk_tier: (euSystem as any).risk_tier,
+      compliance_status: (euSystem as any).compliance_status,
+      prohibited_practices_detected: (euSystem as any).prohibited_practices_detected,
     };
 
     // Fetch risk assessment summary
