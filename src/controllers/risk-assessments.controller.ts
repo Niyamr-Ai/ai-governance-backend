@@ -53,6 +53,20 @@ export async function submitRiskAssessment(req: Request, res: Response) {
       });
     }
 
+    // Governance Rule: Block assessment submission for Prohibited EU AI Act systems
+    const { data: euSystem } = await supabase
+      .from("eu_ai_act_check_results")
+      .select("risk_tier, compliance_status, prohibited_practices_detected")
+      .eq("id", assessment.ai_system_id)
+      .maybeSingle();
+
+    if (euSystem && (euSystem.risk_tier === 'Prohibited' || euSystem.prohibited_practices_detected)) {
+      return res.status(403).json({
+        error: "Cannot submit assessment: This system has been classified as 'Prohibited' under the EU AI Act. Prohibited AI practices cannot be deployed. Please remove prohibited practices before submitting assessments.",
+        prohibited_system: true
+      });
+    }
+
     // Update status to submitted
     const { data: updatedAssessment, error: updateError } = await supabase
       .from("risk_assessments")
@@ -125,6 +139,20 @@ export async function approveRiskAssessment(req: Request, res: Response) {
     if (assessment.status !== 'submitted') {
       return res.status(400).json({
         error: `Cannot approve assessment with status '${assessment.status}'. Only submitted assessments can be approved.`
+      });
+    }
+
+    // Governance Rule: Block assessment approval for Prohibited EU AI Act systems
+    const { data: euSystem } = await supabase
+      .from("eu_ai_act_check_results")
+      .select("risk_tier, compliance_status, prohibited_practices_detected")
+      .eq("id", assessment.ai_system_id)
+      .maybeSingle();
+
+    if (euSystem && (euSystem.risk_tier === 'Prohibited' || euSystem.prohibited_practices_detected)) {
+      return res.status(403).json({
+        error: "Cannot approve assessment: This system has been classified as 'Prohibited' under the EU AI Act. Prohibited AI practices cannot be deployed. Please remove prohibited practices before approving assessments.",
+        prohibited_system: true
       });
     }
 
