@@ -2,7 +2,7 @@
  * RAG Service - Retrieval Augmented Generation for Regulations
  *
  * Provides semantic search over regulation documents stored in Pinecone.
- * Supports EU, UK, and MAS regulations with separate indexes.
+ * Supports EU, UK, and MAS regulations in a unified index with metadata filtering.
  */
 export type RegulationType = 'EU' | 'UK' | 'MAS';
 /**

@@ -1687,7 +1687,7 @@ async function generateDocumentation(regulationType, documentType, systemData, r
         messages: [
             {
                 role: "system",
-                content: "You are an expert compliance documentation writer. Generate comprehensive, professional compliance documentation based on the provided system data, risk assessments, and regulatory context. Always include specific regulatory references and traceability information where available. Use the regulatory context to ensure accuracy and completeness.",
+                content: "You are an expert compliance documentation writer. Generate comprehensive, professional compliance documentation based on the provided system data, risk assessments, and regulatory context. CRITICAL: Use ONLY actual data provided - NEVER use placeholders like [describe...], [provide...], [outline...]. If information is missing, state 'Not specified' or 'Not applicable'. Always include specific regulatory references and traceability information where available. Use the regulatory context to ensure accuracy and completeness.",
             },
             {
                 role: "user",
@@ -1782,31 +1782,97 @@ ${evidenceRefs.length > 0 ? evidenceRefs.join('\n') : 'No specific evidence refe
 }
 // Helper prompt builders (simplified versions)
 function buildEUAIActPrompt(systemData, riskSummary) {
-    return `Generate technical documentation for an AI system aligned with EU AI Act Article 11 requirements.
+    // Extract system description from raw_answers if available
+    const rawAnswers = systemData.raw_answers || {};
+    const systemDescription = rawAnswers.q2 || systemData.system_description || systemData.description || '';
+    const affectsEU = rawAnswers.q1 === 'yes';
+    const hasHighRiskActivities = rawAnswers.q4 && Array.isArray(rawAnswers.q4) && rawAnswers.q4.length > 0 && !rawAnswers.q4.includes('none');
+    const hasBannedActivities = rawAnswers.q5 && Array.isArray(rawAnswers.q5) && rawAnswers.q5.length > 0 && !rawAnswers.q5.includes('none');
+    const interactsWithPeople = rawAnswers.q7 === 'yes';
+    const isMinimalRisk = systemData.risk_tier === 'Minimal-risk' || systemData.risk_tier === 'Minimal-Risk';
+    const isProhibited = systemData.risk_tier === 'Prohibited' || systemData.prohibited_practices_detected;
+    const isHighRisk = systemData.risk_tier === 'High-risk';
+    return `Generate a Compliance Summary document for an AI system under the EU AI Act.
+
+CRITICAL INSTRUCTIONS:
+- Use ONLY the actual system data provided below. DO NOT use placeholders like [describe...], [provide...], [outline...]
+- If information is not available, state "Not specified" or "Not applicable" instead of using placeholders
+- For Minimal-risk systems, do NOT include sections about high-risk obligations (they don't apply)
+- For Prohibited systems, clearly state the prohibited practices and that the system cannot be deployed
+- Use actual data from the assessment - be specific and factual
 
 System Information:
 - Name: ${systemData.system_name || 'Unspecified'}
+- System ID: ${systemData.id || 'N/A'}
 - Risk Tier: ${systemData.risk_tier || 'Unknown'}
 - Compliance Status: ${systemData.compliance_status || 'Unknown'}
 - Lifecycle Stage: ${systemData.lifecycle_stage || 'Draft'}
 - Accountable Person: ${systemData.accountable_person || 'Not specified'}
+- System Description: ${systemDescription || 'Not provided'}
+- Affects EU Users: ${affectsEU ? 'Yes' : 'No'}
+- Prohibited Practices Detected: ${systemData.prohibited_practices_detected ? 'Yes' : 'No'}
+${systemData.prohibited_practices_detected && systemData.reference?.prohibited_practices ? `- Detected Practices: ${Array.isArray(systemData.reference.prohibited_practices) ? systemData.reference.prohibited_practices.join(', ') : 'Not specified'}` : ''}
+- High Risk Obligations Fulfilled: ${systemData.high_risk_all_fulfilled ? 'Yes' : 'No'}
+${systemData.high_risk_missing && systemData.high_risk_missing.length > 0 ? `- Missing Obligations: ${Array.isArray(systemData.high_risk_missing) ? systemData.high_risk_missing.join(', ') : 'None'}` : ''}
+- Transparency Required: ${systemData.transparency_required ? 'Yes' : 'No'}
+- Post-Market Monitoring: ${systemData.post_market_monitoring ? 'Yes' : 'No'}
+- FRIA Completed: ${systemData.fria_completed ? 'Yes' : 'No'}
 
 Risk Assessments (Approved):
-${riskSummary || 'No approved risk assessments'}
+${riskSummary || 'No approved risk assessments available'}
 
-Generate comprehensive technical documentation that includes:
-1. System Overview and Purpose
-2. Risk Classification and Justification
-3. Technical Specifications
-4. Data Governance and Quality Measures
-5. Risk Management System
-6. Human Oversight Mechanisms
-7. Accuracy, Robustness, and Cybersecurity Measures
-8. Transparency and User Information
-9. Post-Market Monitoring Plan (if applicable)
-10. Compliance Summary
+Generate a professional Compliance Summary document that includes:
 
-Format the document professionally with clear sections and subsections. Use markdown formatting.`;
+1. **System Overview**
+   - System name and ID
+   - Purpose: ${systemDescription ? `Use this description: "${systemDescription}"` : 'State "Purpose not specified in assessment"'}
+   - Current lifecycle stage
+
+2. **Risk Classification**
+   - Risk tier: ${systemData.risk_tier || 'Unknown'}
+   - Justification: ${systemData.reference?.reasoning || systemData.summary || 'Explain based on risk tier'}
+   ${isProhibited ? '- Clearly state: This system is PROHIBITED under EU AI Act Article 5 and cannot be deployed' : ''}
+   ${isMinimalRisk ? '- State: This system is classified as Minimal-risk and does not require high-risk obligations' : ''}
+
+3. **Compliance Status**
+   - Overall compliance: ${systemData.compliance_status || 'Unknown'}
+   ${isProhibited ? '- State: System is Non-compliant due to prohibited practices' : ''}
+   ${isMinimalRisk ? '- State: System is Compliant (minimal-risk systems have fewer obligations)' : ''}
+
+${isHighRisk ? `4. **High-Risk Obligations**
+   - Status: ${systemData.high_risk_all_fulfilled ? 'All obligations fulfilled' : `${systemData.high_risk_missing?.length || 0} obligation(s) missing`}
+   ${systemData.high_risk_missing && systemData.high_risk_missing.length > 0 ? `- Missing: ${systemData.high_risk_missing.join(', ')}` : ''}
+` : ''}
+
+${isMinimalRisk ? `4. **Applicable Requirements**
+   - State: Minimal-risk systems do not require high-risk obligations under EU AI Act
+   - Transparency requirements: ${systemData.transparency_required ? 'May apply if system interacts with users' : 'Not required'}
+` : ''}
+
+5. **Risk Assessments**
+   ${riskSummary ? `List approved risk assessments:\n${riskSummary}` : 'No approved risk assessments available'}
+
+${isHighRisk ? `6. **Post-Market Monitoring**
+   - Status: ${systemData.post_market_monitoring ? 'In place' : 'Not yet implemented'}
+   - FRIA: ${systemData.fria_completed ? 'Completed' : 'Not completed'}
+` : ''}
+
+${isMinimalRisk ? `6. **Monitoring Requirements**
+   - State: Post-market monitoring and FRIA are not required for minimal-risk systems
+` : ''}
+
+7. **Compliance Summary**
+   - Summarize the system's compliance status
+   - ${isProhibited ? 'Emphasize that prohibited practices must be removed before deployment' : ''}
+   - ${isMinimalRisk ? 'State that the system meets all applicable requirements for minimal-risk classification' : ''}
+   - Next steps or recommendations
+
+**IMPORTANT:**
+- Use actual data from the system information above
+- Do NOT use placeholders or generic templates
+- If data is missing, state "Not specified" or "Not applicable"
+- Be specific and factual based on the assessment data
+- Format professionally with clear markdown sections`;
 }
 function buildUKAIActPrompt(systemData, riskSummary) {
     return `Generate compliance documentation for an AI system aligned with the UK AI Regulatory Framework.
