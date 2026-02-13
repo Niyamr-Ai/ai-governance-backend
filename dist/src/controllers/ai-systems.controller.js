@@ -1922,148 +1922,425 @@ Generate comprehensive documentation covering all 12 MAS pillars:
 Format the document professionally with clear sections. Use markdown formatting.`;
 }
 function buildModelCardPrompt(regulationType, systemData, riskSummary) {
+    // Extract EU AI Act specific data
+    const rawAnswers = systemData.raw_answers || {};
+    const systemDescription = rawAnswers.q2 || systemData.system_description || systemData.description || '';
+    const isEU = regulationType === 'EU AI Act';
     return `Generate an AI System Card (Model Card) for this AI system.
 
+CRITICAL INSTRUCTIONS:
+- Use ONLY the actual system data provided below. DO NOT use placeholders like [describe...], [provide...], [outline...]
+- If information is not available, state "Not specified" or "Not applicable" instead of using placeholders
+- Use actual data from the assessment - be specific and factual
+
 System Information:
 - Name: ${systemData.system_name || 'Unspecified'}
+- System ID: ${systemData.id || 'N/A'}
 - Regulation: ${regulationType}
+${isEU ? `- Risk Tier: ${systemData.risk_tier || 'Unknown'}` : ''}
+${isEU ? `- Compliance Status: ${systemData.compliance_status || 'Unknown'}` : ''}
+${isEU ? `- Lifecycle Stage: ${systemData.lifecycle_stage || 'Draft'}` : ''}
+- System Description: ${systemDescription || 'Not provided'}
 
 Risk Assessments:
-${riskSummary || 'No approved risk assessments'}
+${riskSummary || 'No approved risk assessments available'}
 
 Generate a comprehensive Model Card that includes:
-1. Model Details (name, version, type, framework)
-2. Intended Use and Limitations
-3. Training Data (sources, characteristics, preprocessing)
-4. Performance Metrics
-5. Evaluation Data
-6. Ethical Considerations
-7. Risk Assessment Summary
-8. Compliance Status
-9. Maintenance and Updates
+1. Model Details
+   - Name: ${systemData.system_name || 'Use system name above'}
+   - System ID: ${systemData.id || 'N/A'}
+   ${systemDescription ? `- Intended Use: ${systemDescription}` : '- Intended Use: Not specified'}
+   - Version: ${systemData.version || 'Not specified'}
+   - Type/Framework: Not specified (use if available in risk assessments)
 
-Use markdown formatting.`;
+2. Intended Use and Limitations
+   ${systemDescription ? `- Primary Purpose: ${systemDescription}` : '- Primary Purpose: Not specified'}
+   - Limitations: ${riskSummary ? 'Review risk assessments for limitations' : 'Not specified'}
+
+3. Training Data
+   - Sources: Not specified (use if available in risk assessments)
+   - Characteristics: Not specified
+   - Preprocessing: Not specified
+
+4. Performance Metrics
+   - Metrics: ${riskSummary ? 'Review risk assessments for performance data' : 'Not specified'}
+
+5. Evaluation Data
+   - Evaluation Results: ${riskSummary ? 'Review risk assessments' : 'Not specified'}
+
+6. Ethical Considerations
+   ${isEU && systemData.prohibited_practices_detected ? '- Prohibited Practices: Detected - system cannot be deployed' : ''}
+   ${isEU ? `- Risk Tier: ${systemData.risk_tier || 'Unknown'}` : ''}
+   - Ethical Concerns: ${riskSummary ? 'Review risk assessments' : 'Not specified'}
+
+7. Risk Assessment Summary
+   ${riskSummary || 'No approved risk assessments available'}
+
+8. Compliance Status
+   ${isEU ? `- EU AI Act Compliance: ${systemData.compliance_status || 'Unknown'}` : ''}
+   ${isEU && systemData.risk_tier ? `- Risk Classification: ${systemData.risk_tier}` : ''}
+
+9. Maintenance and Updates
+   - Update Policy: Not specified
+   - Last Updated: ${new Date().toISOString().split('T')[0]}
+
+**IMPORTANT:** Use actual data from the system information above. Do NOT use placeholders. Format professionally with clear markdown sections.`;
 }
 function buildTechnicalDocPrompt(regulationType, systemData, riskSummary) {
-    return `Generate Technical Documentation for this AI system.
+    // Extract EU AI Act specific data
+    const rawAnswers = systemData.raw_answers || {};
+    const systemDescription = rawAnswers.q2 || systemData.system_description || systemData.description || '';
+    const isEU = regulationType === 'EU AI Act';
+    const isMinimalRisk = isEU && (systemData.risk_tier === 'Minimal-risk' || systemData.risk_tier === 'Minimal-Risk');
+    const isProhibited = isEU && (systemData.risk_tier === 'Prohibited' || systemData.prohibited_practices_detected);
+    const isHighRisk = isEU && systemData.risk_tier === 'High-risk';
+    return `Generate Technical Documentation for this AI system aligned with ${isEU ? 'EU AI Act Article 11' : regulationType} requirements.
+
+CRITICAL INSTRUCTIONS:
+- Use ONLY the actual system data provided below. DO NOT use placeholders like [describe...], [provide...], [outline...]
+- If information is not available, state "Not specified" or "Not applicable" instead of using placeholders
+${isMinimalRisk ? '- For Minimal-risk systems, note that high-risk obligations do not apply' : ''}
+${isProhibited ? '- For Prohibited systems, clearly state the system cannot be deployed' : ''}
+- Use actual data from the assessment - be specific and factual
 
 System Information:
 - Name: ${systemData.system_name || 'Unspecified'}
+- System ID: ${systemData.id || 'N/A'}
 - Risk Tier/Level: ${systemData.risk_tier || systemData.risk_level || 'Unknown'}
+${isEU ? `- Compliance Status: ${systemData.compliance_status || 'Unknown'}` : ''}
+${isEU ? `- Lifecycle Stage: ${systemData.lifecycle_stage || 'Draft'}` : ''}
+- System Description: ${systemDescription || 'Not provided'}
+${isEU ? `- Prohibited Practices Detected: ${systemData.prohibited_practices_detected ? 'Yes' : 'No'}` : ''}
+${isEU && isHighRisk ? `- High Risk Obligations Fulfilled: ${systemData.high_risk_all_fulfilled ? 'Yes' : 'No'}` : ''}
+${isEU && isHighRisk && systemData.high_risk_missing ? `- Missing Obligations: ${Array.isArray(systemData.high_risk_missing) ? systemData.high_risk_missing.join(', ') : 'None'}` : ''}
 
 Risk Assessments:
-${riskSummary || 'No approved risk assessments'}
+${riskSummary || 'No approved risk assessments available'}
 
 Generate comprehensive technical documentation that includes:
-1. System Architecture and Design
-2. Technical Specifications
-3. Data Specifications and Governance
-4. Training Methodology
-5. Performance Metrics and Evaluation
-6. Risk Management Measures
-7. Human Oversight Mechanisms
-8. Accuracy, Robustness, and Cybersecurity
-9. Monitoring and Logging Capabilities
-10. Change Management Procedures
 
-Use markdown formatting.`;
+1. System Architecture and Design
+   - System Name: ${systemData.system_name || 'Unspecified'}
+   ${systemDescription ? `- Purpose: ${systemDescription}` : '- Purpose: Not specified'}
+   - Architecture: Not specified (use if available in risk assessments)
+   - Design Approach: Not specified
+
+2. Technical Specifications
+   - Technical Details: Not specified (use if available in risk assessments)
+   - Components: Not specified
+   - Integration: Not specified
+
+3. Data Specifications and Governance
+   ${isEU && isHighRisk ? '- Data Governance: Required for high-risk systems under EU AI Act Article 17' : ''}
+   - Data Sources: Not specified
+   - Data Quality Measures: Not specified
+   ${isEU && isHighRisk ? '- Compliance with Article 17: ${systemData.high_risk_all_fulfilled ? "Fulfilled" : "Review missing obligations"}' : ''}
+
+4. Training Methodology
+   - Training Approach: Not specified
+   - Training Data: Not specified
+   - Methodology: Not specified
+
+5. Performance Metrics and Evaluation
+   - Performance Metrics: ${riskSummary ? 'Review risk assessments for metrics' : 'Not specified'}
+   - Evaluation Results: ${riskSummary ? 'Review risk assessments' : 'Not specified'}
+
+6. Risk Management System
+   ${isEU && isHighRisk ? '- Risk Management: Required under EU AI Act Article 9' : ''}
+   ${isEU && isMinimalRisk ? '- Risk Management: Not required for minimal-risk systems' : ''}
+   - Risk Identification: ${riskSummary ? 'See risk assessments above' : 'Not specified'}
+   - Risk Mitigation: ${riskSummary ? 'See risk assessments above' : 'Not specified'}
+
+7. Human Oversight Mechanisms
+   ${isEU && isHighRisk ? '- Human Oversight: Required under EU AI Act Article 14' : ''}
+   ${isEU && isMinimalRisk ? '- Human Oversight: Not required for minimal-risk systems' : ''}
+   - Oversight Strategy: Not specified
+   - Decision-Making: Not specified
+
+8. Accuracy, Robustness, and Cybersecurity
+   ${isEU && isHighRisk ? '- Required under EU AI Act Article 15' : ''}
+   - Accuracy Measures: Not specified
+   - Robustness: Not specified
+   - Cybersecurity: Not specified
+
+9. Monitoring and Logging Capabilities
+   ${isEU && isHighRisk ? `- Post-Market Monitoring: ${systemData.post_market_monitoring ? 'In place' : 'Not yet implemented'}` : ''}
+   ${isEU && isMinimalRisk ? '- Post-Market Monitoring: Not required for minimal-risk systems' : ''}
+   - Logging: Not specified
+
+10. Change Management Procedures
+    - Change Process: Not specified
+    - Version Control: Not specified
+
+**IMPORTANT:** Use actual data from the system information above. Do NOT use placeholders. Format professionally with clear markdown sections.`;
 }
 function buildDPIAPrompt(regulationType, systemData, riskSummary) {
-    return `Generate a Data Protection Impact Assessment (DPIA) for this AI system.
+    // Extract EU AI Act specific data
+    const rawAnswers = systemData.raw_answers || {};
+    const systemDescription = rawAnswers.q2 || systemData.system_description || systemData.description || '';
+    const isEU = regulationType === 'EU AI Act';
+    return `Generate a Data Protection Impact Assessment (DPIA) for this AI system under ${regulationType}.
+
+CRITICAL INSTRUCTIONS:
+- Use ONLY the actual system data provided below. DO NOT use placeholders like [describe...], [provide...], [outline...]
+- If information is not available, state "Not specified" or "Not applicable" instead of using placeholders
+- Use actual data from the assessment - be specific and factual
 
 System Information:
 - Name: ${systemData.system_name || 'Unspecified'}
+- System ID: ${systemData.id || 'N/A'}
 - Regulation: ${regulationType}
+${isEU ? `- Risk Tier: ${systemData.risk_tier || 'Unknown'}` : ''}
+${isEU ? `- Compliance Status: ${systemData.compliance_status || 'Unknown'}` : ''}
+- System Description: ${systemDescription || 'Not provided'}
 
 Risk Assessments:
-${riskSummary || 'No approved risk assessments'}
+${riskSummary || 'No approved risk assessments available'}
 
 Generate a comprehensive DPIA that includes:
-1. System Description and Purpose
-2. Data Processing Activities
-3. Necessity and Proportionality Assessment
-4. Risk Identification and Assessment
-5. Data Subject Rights and Safeguards
-6. Data Minimization Measures
-7. Security Measures
-8. Data Retention and Deletion
-9. Third-Party Data Sharing
-10. Compliance with GDPR/Data Protection Regulations
 
-Use markdown formatting.`;
+1. System Description and Purpose
+   - System Name: ${systemData.system_name || 'Unspecified'}
+   ${systemDescription ? `- Purpose: ${systemDescription}` : '- Purpose: Not specified'}
+   - System ID: ${systemData.id || 'N/A'}
+
+2. Data Processing Activities
+   - Data Types Processed: Not specified
+   - Processing Activities: Not specified
+   - Data Sources: Not specified
+
+3. Necessity and Proportionality Assessment
+   - Necessity: Not specified
+   - Proportionality: Not specified
+
+4. Risk Identification and Assessment
+   ${riskSummary ? `Risk Assessments:\n${riskSummary}` : 'No approved risk assessments available'}
+   ${isEU ? `- Risk Tier: ${systemData.risk_tier || 'Unknown'}` : ''}
+
+5. Data Subject Rights and Safeguards
+   - Rights Implementation: Not specified
+   - Safeguards: Not specified
+
+6. Data Minimization Measures
+   - Minimization Approach: Not specified
+   - Data Collection Limits: Not specified
+
+7. Security Measures
+   - Security Controls: Not specified
+   - Protection Measures: Not specified
+
+8. Data Retention and Deletion
+   - Retention Period: Not specified
+   - Deletion Procedures: Not specified
+
+9. Third-Party Data Sharing
+   - Third Parties: Not specified
+   - Sharing Agreements: Not specified
+
+10. Compliance with GDPR/Data Protection Regulations
+    ${isEU ? `- EU AI Act Compliance: ${systemData.compliance_status || 'Unknown'}` : ''}
+    - GDPR Compliance: Not specified
+
+**IMPORTANT:** Use actual data from the system information above. Do NOT use placeholders. Format professionally with clear markdown sections.`;
 }
 function buildRiskReportPrompt(regulationType, systemData, riskSummary) {
-    return `Generate a comprehensive Risk Assessment Report for this AI system.
+    // Extract EU AI Act specific data
+    const rawAnswers = systemData.raw_answers || {};
+    const systemDescription = rawAnswers.q2 || systemData.system_description || systemData.description || '';
+    const isEU = regulationType === 'EU AI Act';
+    return `Generate a comprehensive Risk Assessment Report for this AI system under ${regulationType}.
+
+CRITICAL INSTRUCTIONS:
+- Use ONLY the actual system data provided below. DO NOT use placeholders like [describe...], [provide...], [outline...]
+- If information is not available, state "Not specified" or "Not applicable" instead of using placeholders
+- Use actual data from risk assessments - be specific and factual
 
 System Information:
 - Name: ${systemData.system_name || 'Unspecified'}
+- System ID: ${systemData.id || 'N/A'}
 - Regulation: ${regulationType}
 - Risk Tier/Level: ${systemData.risk_tier || systemData.risk_level || 'Unknown'}
+${isEU ? `- Compliance Status: ${systemData.compliance_status || 'Unknown'}` : ''}
+${isEU ? `- Lifecycle Stage: ${systemData.lifecycle_stage || 'Draft'}` : ''}
+- System Description: ${systemDescription || 'Not provided'}
 
 Risk Assessments (Detailed):
-${riskSummary || 'No approved risk assessments'}
+${riskSummary || 'No approved risk assessments available'}
 
 Generate a comprehensive Risk Assessment Report that includes:
-1. Executive Summary
-2. Risk Identification (by category)
-3. Risk Analysis and Scoring
-4. Risk Evaluation and Prioritization
-5. Existing Controls and Mitigations
-6. Residual Risk Assessment
-7. Risk Treatment Recommendations
-8. Monitoring and Review Procedures
-9. Risk Register
-10. Appendices (evidence, test results, approvals)
 
-Use markdown formatting with clear tables and sections.`;
+1. Executive Summary
+   - System: ${systemData.system_name || 'Unspecified'}
+   - Risk Tier: ${systemData.risk_tier || systemData.risk_level || 'Unknown'}
+   ${riskSummary ? '- Summary: Review risk assessments above' : '- Summary: No risk assessments available'}
+
+2. Risk Identification (by category)
+   ${riskSummary ? `Risk Categories:\n${riskSummary}` : 'No approved risk assessments available'}
+
+3. Risk Analysis and Scoring
+   ${riskSummary ? 'Review risk scores from assessments above' : 'Risk scores: Not available'}
+
+4. Risk Evaluation and Prioritization
+   - Prioritization: ${riskSummary ? 'Based on risk assessments above' : 'Not specified'}
+
+5. Existing Controls and Mitigations
+   ${riskSummary ? 'Review mitigation status from assessments above' : 'Controls: Not specified'}
+
+6. Residual Risk Assessment
+   - Residual Risk: ${riskSummary ? 'Review assessments above' : 'Not specified'}
+
+7. Risk Treatment Recommendations
+   ${riskSummary ? 'Review recommendations from assessments above' : 'Recommendations: Not specified'}
+
+8. Monitoring and Review Procedures
+   ${isEU && systemData.post_market_monitoring ? '- Post-Market Monitoring: In place' : ''}
+   - Review Schedule: Not specified
+
+9. Risk Register
+   ${riskSummary ? 'Compile from risk assessments above' : 'No risk register data available'}
+
+10. Appendices (evidence, test results, approvals)
+    ${riskSummary ? 'Reference risk assessments above' : 'No appendices available'}
+
+**IMPORTANT:** Use actual data from the system information and risk assessments above. Do NOT use placeholders. Format professionally with clear markdown sections and tables.`;
 }
 function buildAlgorithmImpactPrompt(regulationType, systemData, riskSummary) {
-    return `Generate an Algorithm Impact Assessment for this AI system.
+    // Extract EU AI Act specific data
+    const rawAnswers = systemData.raw_answers || {};
+    const systemDescription = rawAnswers.q2 || systemData.system_description || systemData.description || '';
+    const isEU = regulationType === 'EU AI Act';
+    return `Generate an Algorithm Impact Assessment for this AI system under ${regulationType}.
+
+CRITICAL INSTRUCTIONS:
+- Use ONLY the actual system data provided below. DO NOT use placeholders like [describe...], [provide...], [outline...]
+- If information is not available, state "Not specified" or "Not applicable" instead of using placeholders
+- Use actual data from the assessment - be specific and factual
 
 System Information:
 - Name: ${systemData.system_name || 'Unspecified'}
+- System ID: ${systemData.id || 'N/A'}
 - Regulation: ${regulationType}
+${isEU ? `- Risk Tier: ${systemData.risk_tier || 'Unknown'}` : ''}
+${isEU ? `- Compliance Status: ${systemData.compliance_status || 'Unknown'}` : ''}
+- System Description: ${systemDescription || 'Not provided'}
 
 Risk Assessments:
-${riskSummary || 'No approved risk assessments'}
+${riskSummary || 'No approved risk assessments available'}
 
 Generate a comprehensive Algorithm Impact Assessment that includes:
-1. Algorithm Description and Purpose
-2. Decision-Making Process
-3. Impact on Individuals and Society
-4. Fairness and Bias Analysis
-5. Transparency and Explainability
-6. Accuracy and Performance
-7. Human Oversight Mechanisms
-8. Mitigation Measures
-9. Monitoring and Evaluation
-10. Recommendations
 
-Use markdown formatting.`;
+1. Algorithm Description and Purpose
+   - System Name: ${systemData.system_name || 'Unspecified'}
+   ${systemDescription ? `- Purpose: ${systemDescription}` : '- Purpose: Not specified'}
+   - Algorithm Type: Not specified
+
+2. Decision-Making Process
+   - Process Description: Not specified
+   - Decision Logic: Not specified
+
+3. Impact on Individuals and Society
+   ${isEU ? `- Risk Tier: ${systemData.risk_tier || 'Unknown'}` : ''}
+   - Impact Assessment: ${riskSummary ? 'Review risk assessments above' : 'Not specified'}
+
+4. Fairness and Bias Analysis
+   - Bias Analysis: ${riskSummary ? 'Review risk assessments above' : 'Not specified'}
+   - Fairness Measures: Not specified
+
+5. Transparency and Explainability
+   ${isEU ? `- Transparency Required: ${systemData.transparency_required ? 'Yes' : 'No'}` : ''}
+   - Explainability: Not specified
+
+6. Accuracy and Performance
+   - Performance Metrics: ${riskSummary ? 'Review risk assessments above' : 'Not specified'}
+   - Accuracy: Not specified
+
+7. Human Oversight Mechanisms
+   ${isEU && systemData.risk_tier === 'High-risk' ? '- Human Oversight: Required under EU AI Act Article 14' : ''}
+   - Oversight: Not specified
+
+8. Mitigation Measures
+   ${riskSummary ? 'Review mitigation status from assessments above' : 'Mitigations: Not specified'}
+
+9. Monitoring and Evaluation
+   ${isEU ? `- Post-Market Monitoring: ${systemData.post_market_monitoring ? 'In place' : 'Not yet implemented'}` : ''}
+   - Evaluation: Not specified
+
+10. Recommendations
+    ${riskSummary ? 'Review recommendations from assessments above' : 'Recommendations: Not specified'}
+
+**IMPORTANT:** Use actual data from the system information above. Do NOT use placeholders. Format professionally with clear markdown sections.`;
 }
 function buildAuditTrailPrompt(regulationType, systemData, riskSummary) {
-    return `Generate an Audit Trail / Records document for this AI system.
+    // Extract EU AI Act specific data
+    const rawAnswers = systemData.raw_answers || {};
+    const systemDescription = rawAnswers.q2 || systemData.system_description || systemData.description || '';
+    const isEU = regulationType === 'EU AI Act';
+    return `Generate an Audit Trail / Records document for this AI system under ${regulationType}.
+
+CRITICAL INSTRUCTIONS:
+- Use ONLY the actual system data provided below. DO NOT use placeholders like [describe...], [provide...], [outline...]
+- If information is not available, state "Not specified" or "Not applicable" instead of using placeholders
+- Use actual data from the system - be specific and factual
+- Format as a chronological log with clear timestamps
 
 System Information:
 - Name: ${systemData.system_name || 'Unspecified'}
+- System ID: ${systemData.id || 'N/A'}
 - Regulation: ${regulationType}
+${isEU ? `- Risk Tier: ${systemData.risk_tier || 'Unknown'}` : ''}
+${isEU ? `- Compliance Status: ${systemData.compliance_status || 'Unknown'}` : ''}
+${isEU ? `- Lifecycle Stage: ${systemData.lifecycle_stage || 'Draft'}` : ''}
+- System Description: ${systemDescription || 'Not provided'}
 
 Risk Assessments:
-${riskSummary || 'No approved risk assessments'}
+${riskSummary || 'No approved risk assessments available'}
 
 Generate a comprehensive Audit Trail document that includes:
-1. System Change History
-2. Risk Assessment History (with versions and dates)
-3. Compliance Check History
-4. Documentation Versions
-5. Approval and Sign-off Records
-6. Incident Log (if applicable)
-7. Monitoring Events
-8. Training and Update Records
-9. Access and Modification Logs
-10. Compliance Evidence Trail
 
-Format as a chronological log with clear timestamps. Use markdown formatting with tables.`;
+1. System Change History
+   - System Created: ${systemData.created_at ? new Date(systemData.created_at).toISOString() : 'Not specified'}
+   - Last Updated: ${systemData.updated_at ? new Date(systemData.updated_at).toISOString() : 'Not specified'}
+   - Changes: Not specified
+
+2. Risk Assessment History (with versions and dates)
+   ${riskSummary ? `Risk Assessments:\n${riskSummary}` : 'No approved risk assessments available'}
+   - Assessment Dates: ${riskSummary ? 'See assessments above' : 'Not available'}
+
+3. Compliance Check History
+   ${isEU ? `- Compliance Status: ${systemData.compliance_status || 'Unknown'}` : ''}
+   ${isEU ? `- Last Compliance Check: ${systemData.updated_at ? new Date(systemData.updated_at).toISOString() : 'Not specified'}` : ''}
+   - Check History: Not specified
+
+4. Documentation Versions
+   - Current Version: 1.0
+   - Generated: ${new Date().toISOString()}
+   - Previous Versions: Not available
+
+5. Approval and Sign-off Records
+   - Approvals: Not specified
+   - Sign-offs: Not specified
+
+6. Incident Log (if applicable)
+   - Incidents: None recorded
+
+7. Monitoring Events
+   ${isEU ? `- Post-Market Monitoring: ${systemData.post_market_monitoring ? 'Active' : 'Not active'}` : ''}
+   - Events: Not specified
+
+8. Training and Update Records
+   - Training Records: Not specified
+   - Update History: Not specified
+
+9. Access and Modification Logs
+   - Access Logs: Not specified
+   - Modification Logs: Not specified
+
+10. Compliance Evidence Trail
+    ${isEU ? `- EU AI Act Compliance: ${systemData.compliance_status || 'Unknown'}` : ''}
+    ${isEU && systemData.risk_tier ? `- Risk Classification: ${systemData.risk_tier}` : ''}
+    - Evidence: ${riskSummary ? 'See risk assessments above' : 'Not available'}
+
+**IMPORTANT:** Use actual data from the system information above. Do NOT use placeholders. Format as a chronological log with clear timestamps. Use markdown formatting with tables.`;
 }
 /**
  * PUT /api/ai-systems/[id]/policies/[mappingId] - Update a policy mapping

@@ -127,16 +127,16 @@ if (!user_id) {
     // q4: Does your AI system do any of the following? (high-risk activities)
     const activities = Array.isArray(answers.q4) ? answers.q4 : [];
     const hasHighRiskActivities = activities.length > 0 && !activities.includes('none');
-    contextString += `Q4 - High-risk Activities: ${hasHighRiskActivities ? activities.filter(a => a !== 'none').join(', ') : 'None'}\n`;
+    contextString += `Q4 - High-risk Activities: ${hasHighRiskActivities ? activities.filter((a: string) => a !== 'none').join(', ') : 'None'}\n`;
     
     // q5: Does your AI system do any banned/controversial things? (PROHIBITED PRACTICES)
     const bannedActivities = Array.isArray(answers.q5) ? answers.q5 : [];
     const hasBannedActivities = bannedActivities.length > 0 && !bannedActivities.includes('none');
-    contextString += `Q5 - Banned/Prohibited Activities: ${hasBannedActivities ? bannedActivities.filter(a => a !== 'none').join(', ') : 'None'}\n`;
+    contextString += `Q5 - Banned/Prohibited Activities: ${hasBannedActivities ? bannedActivities.filter((a: string) => a !== 'none').join(', ') : 'None'}\n`;
     
     // q6: Risk management actions taken
     const riskActions = Array.isArray(answers.q6) ? answers.q6 : [];
-    contextString += `Q6 - Risk Management Actions: ${riskActions.length > 0 && !riskActions.includes('none') ? riskActions.filter(a => a !== 'none').join(', ') : 'None'}\n`;
+    contextString += `Q6 - Risk Management Actions: ${riskActions.length > 0 && !riskActions.includes('none') ? riskActions.filter((a: string) => a !== 'none').join(', ') : 'None'}\n`;
     
     // q7: Interacts with people or creates synthetic content
     const interactsWithPeople = answers.q7 === 'yes';
@@ -150,7 +150,7 @@ if (!user_id) {
     
     // q9: Accountability & Governance measures
     const governanceMeasures = Array.isArray(answers.q9) ? answers.q9 : [];
-    contextString += `Q9 - Governance Measures: ${governanceMeasures.length > 0 && !governanceMeasures.includes('none') ? governanceMeasures.filter(a => a !== 'none').join(', ') : 'None'}\n`;
+    contextString += `Q9 - Governance Measures: ${governanceMeasures.length > 0 && !governanceMeasures.includes('none') ? governanceMeasures.filter((a: string) => a !== 'none').join(', ') : 'None'}\n`;
     
     // q10: Accountable person
     contextString += `Q10 - Accountable Person: ${answers.q10 || 'Not specified'}\n`;
