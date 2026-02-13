@@ -40,10 +40,15 @@ function authenticateToken(req, res, next) {
                 message: "Token not provided",
             });
         }
-        // Temporarily hardcode the JWT secret for testing
-        const jwtSecret = "5V1G+wSmUsel/CIkgtIHrdqlOmyRDHIBH1M4L0Dt6sQYZuJG9+Gmt+/vMAfC9o7P093J3UJg7O4BEl8bNBL8mw==";
-        console.log("🔍 [BACKEND] Using hardcoded JWT secret, length:", jwtSecret.length);
-        console.log("🔍 [BACKEND] Verifying JWT token...");
+        const jwtSecret = process.env.SUPABASE_JWT_SECRET;
+        if (!jwtSecret) {
+            console.error("❌ [BACKEND] SUPABASE_JWT_SECRET is not defined in environment variables");
+            return res.status(500).json({
+                error: "Server configuration error",
+                message: "Missing JWT secret configuration"
+            });
+        }
+        console.log("🔍 [BACKEND] Verifying JWT token using environment secret...");
         const decoded = jsonwebtoken_1.default.verify(token, jwtSecret);
         console.log("✅ [BACKEND] JWT token verified successfully");
         // Extract user information from JWT

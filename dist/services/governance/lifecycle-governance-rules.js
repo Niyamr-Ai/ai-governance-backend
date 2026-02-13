@@ -62,14 +62,46 @@ function validateTransitionToTesting(riskSummary) {
 /**
  * Validate transition to Deployed (Production)
  * Rules:
- * 1. Require at least one APPROVED risk assessment
- * 2. MAS: Require accountability owner
- * 3. UK: Ensure risk management and governance checks are in place
+ * 1. BLOCK if risk_tier = "Prohibited" (EU AI Act) - Prohibited systems cannot be deployed
+ * 2. BLOCK if High-risk and Non-compliant or Partially compliant
+ * 3. Require at least one APPROVED risk assessment
+ * 4. MAS: Require accountability owner
+ * 5. UK: Ensure risk management and governance checks are in place
  */
 function validateTransitionToProduction(complianceData, riskSummary) {
     const errors = [];
     const warnings = [];
-    // Rule 1: Require approved risk assessment
+    // Rule 1: BLOCK Prohibited systems from Production deployment
+    if (complianceData?.type === 'EU AI Act') {
+        if (complianceData.risk_tier === 'Prohibited' || complianceData.prohibited_practices_detected) {
+            return {
+                valid: false,
+                reason: "Cannot deploy to Production: This system has been classified as 'Prohibited' under the EU AI Act. Prohibited AI practices (social scoring, real-time biometric identification in public spaces, influencing law enforcement decisions) are strictly forbidden and cannot be deployed. Immediate action required to remove prohibited practices before deployment.",
+                warnings: [
+                    "Prohibited practices detected: " + (complianceData.prohibited_practices_detected ? "Yes" : "Risk tier is Prohibited"),
+                    "According to EU AI Act Article 5, prohibited AI systems cannot be placed on the market, put into service, or used.",
+                    "You must modify the system to remove all prohibited practices before it can be deployed."
+                ]
+            };
+        }
+        // Rule 2: BLOCK High-risk systems that are Non-compliant or Partially compliant
+        if (complianceData.risk_tier === 'High-risk') {
+            if (complianceData.compliance_status === 'Non-compliant') {
+                return {
+                    valid: false,
+                    reason: "Cannot deploy to Production: This High-risk system is 'Non-compliant'. All high-risk obligations must be fulfilled and compliance status must be 'Compliant' or 'Partially compliant' before deployment.",
+                    warnings: [
+                        "High-risk AI systems require full compliance with EU AI Act obligations before deployment.",
+                        "Review and address all missing high-risk obligations to achieve compliance."
+                    ]
+                };
+            }
+            if (complianceData.compliance_status === 'Partially compliant') {
+                warnings.push("System is 'Partially compliant'. Ensure all critical high-risk obligations are met before deployment.");
+            }
+        }
+    }
+    // Rule 3: Require approved risk assessment
     if (riskSummary.approved === 0) {
         errors.push("At least one APPROVED risk assessment is required before moving to Production.");
     }

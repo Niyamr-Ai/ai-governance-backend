@@ -14,6 +14,9 @@ export interface SystemComplianceData {
     type: 'EU AI Act' | 'MAS' | 'UK AI Act';
     accountable_person?: string;
     owner?: string;
+    risk_tier?: string;
+    compliance_status?: string;
+    prohibited_practices_detected?: boolean;
     safety_and_security?: any;
     transparency?: any;
     fairness?: any;

@@ -20,7 +20,10 @@ export declare function verifySystemAccess(userId: string, systemId: string): Pr
  * @param userId - Authenticated user ID
  * @param systemId - System ID (optional)
  * @param mode - Chatbot mode
+ * @param pageContext - Page context to determine if dashboard-level query
  * @returns true if access is valid, throws error if access denied
  */
-export declare function enforceTenantIsolation(userId: string, systemId: string | undefined, mode: 'SYSTEM_ANALYSIS' | 'ACTION'): Promise<void>;
+export declare function enforceTenantIsolation(userId: string, systemId: string | undefined, mode: 'SYSTEM_ANALYSIS' | 'ACTION', pageContext?: {
+    pageType?: string;
+}): Promise<void>;
 //# sourceMappingURL=tenant-isolation.d.ts.map

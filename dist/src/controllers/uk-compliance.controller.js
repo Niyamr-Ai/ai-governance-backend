@@ -113,7 +113,7 @@ async function postUkCompliance(req, res) {
     try {
         console.log("[UK API] ===== POST /api/uk-compliance =====");
         const body = req.body;
-        const { answers, contextChunks: providedContext, system_name, company_name, company_use_case } = body;
+        const { answers, contextChunks: providedContext, system_id, system_name, company_name, company_use_case } = body;
         if (!answers) {
             console.log("[UK API] ❌ Answers are required");
             return res.status(400).json({ error: "Answers are required" });
@@ -129,6 +129,13 @@ async function postUkCompliance(req, res) {
         console.log("[UK API] System name:", system_name);
         console.log("[UK API] Company name:", company_name);
         console.log("[UK API] Company use case:", company_use_case);
+        // Extract from answers if not provided at top level (for backward compatibility)
+        const finalSystemName = system_name || answers?.system_name || null;
+        const finalCompanyName = company_name || answers?.owner || answers?.company_name || null;
+        const finalCompanyUseCase = company_use_case || answers?.business_use_case || null;
+        console.log("[UK API] Final values - System name:", finalSystemName);
+        console.log("[UK API] Final values - Company name:", finalCompanyName);
+        console.log("[UK API] Final values - Company use case:", finalCompanyUseCase);
         // Extract evidence content from answers
         const evidenceContent = {};
         const answersWithoutEvidence = {};
@@ -409,6 +416,7 @@ Only return valid JSON. No explanation outside the JSON.
         const payload = {
             user_id: userId,
             org_id: userId, // Set org_id to user_id (1:1 mapping for tenant isolation)
+            system_id: system_id || null, // Link to ai_systems table for multi-jurisdiction support
             risk_level: assessment.riskLevel,
             overall_assessment: assessment.overallAssessment,
             safety_and_security: assessment.safetyAndSecurity,
@@ -418,9 +426,9 @@ Only return valid JSON. No explanation outside the JSON.
             contestability: assessment.contestability,
             sector_regulation: assessment.sectorRegulation,
             summary: assessment.summary,
-            system_name: system_name || null,
-            company_name: company_name || null,
-            company_use_case: company_use_case || null,
+            system_name: finalSystemName,
+            company_name: finalCompanyName,
+            company_use_case: finalCompanyUseCase,
             raw_answers: answers, // Include all answers including evidence content
             accountable_person: accountablePerson || null,
         };

@@ -40,11 +40,29 @@ async function classifyIntent(userMessage, pageContext) {
 
 Your task is to classify the user's message into one or more modes (in priority order):
 
-1. EXPLAIN - User wants to understand regulations, concepts, or how the platform works. Educational questions like "What is the EU AI Act?", "How does risk assessment work?", "Explain transparency requirements".
+1. EXPLAIN - User wants to understand regulations, concepts, or how the platform works. Educational questions like "What is the EU AI Act?", "How does risk assessment work?", "Explain transparency requirements". Questions about general concepts WITHOUT referring to "this system", "my system", "our system", or specific system attributes.
 
-2. SYSTEM_ANALYSIS - User wants to analyze their specific AI system against regulations. Questions like "Is my system compliant?", "What are the risks for this system?", "How does my system compare to regulations?". Requires system data.
+2. SYSTEM_ANALYSIS - User wants to analyze their specific AI system(s) against regulations OR asks about specific attributes/properties of their system(s). Questions like:
+   - "Is my system compliant?", "Are we compliant with EU AI Act?", "What are the risks for this system?"
+   - "What are the [attribute] in this system?" (e.g., "What are the governance policy type and governance framework in this system?")
+   - "What is the [property] of this system?" (e.g., "What is the risk level of this system?")
+   - "How does my system compare to regulations?", "Do we meet transparency requirements?", "What's our compliance status?"
+   - "Which systems need immediate attention?", "Show me systems that are non-compliant", "What systems have high risk?"
+   - "How many systems are covered under EU AI Act?", "How many systems do I have?", "How many high-risk systems?"
+   - Questions asking about system-specific data, attributes, properties, or configurations
+   - Questions about multiple systems or all systems (dashboard queries)
+   - Questions asking for COUNTS or NUMBERS of systems (e.g., "How many...", "What's the count of...", "How many systems...")
+   Requires system data. COMPLIANCE QUESTIONS, SYSTEM ATTRIBUTE QUESTIONS, COUNT QUESTIONS, and QUESTIONS ABOUT MULTIPLE SYSTEMS should be classified as SYSTEM_ANALYSIS.
 
 3. ACTION - User wants actionable next steps or recommendations within the platform. Questions like "What should I do next?", "How do I complete this task?", "What are my pending actions?". Requires platform workflows.
+
+CRITICAL RULES:
+- If the question contains "this system", "my system", "our system", or asks about specific system attributes/properties, classify as SYSTEM_ANALYSIS
+- If the question asks "What are the [X] in this system?" or "What is the [X] of this system?", classify as SYSTEM_ANALYSIS
+- If the question asks "How many systems..." or "How many [X] systems..." or requests a COUNT/NUMBER, classify as SYSTEM_ANALYSIS (even if it mentions a regulation name)
+- If the question asks "Do I have systems..." or "Which systems...", classify as SYSTEM_ANALYSIS
+- If the question is purely educational about regulations/concepts without system reference AND doesn't ask for counts/numbers, classify as EXPLAIN
+- Questions like "How many systems are covered under EU AI Act?" should be SYSTEM_ANALYSIS (asking for count of user's systems), NOT EXPLAIN (not asking what EU AI Act is)
 
 Current page context:
 ${contextDescription}
