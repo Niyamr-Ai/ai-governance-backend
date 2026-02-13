@@ -11,6 +11,7 @@ export interface MasAssessmentResult {
     id: string;
     user_id: string | null;
     created_at: string;
+    system_id?: string | null;
     system_name: string;
     description: string;
     owner: string;

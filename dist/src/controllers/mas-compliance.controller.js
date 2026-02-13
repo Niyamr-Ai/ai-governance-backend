@@ -128,6 +128,7 @@ function mergeWithDefaults(result, answers, userId) {
     return {
         user_id: userId,
         org_id: userId, // Set org_id to user_id (1:1 mapping for tenant isolation)
+        system_id: answers.system_id || null, // Link to ai_systems table for multi-jurisdiction support
         system_name: result?.system_name || answers.system_name || "Untitled system",
         description: result?.description || answers.description || "",
         owner: result?.owner || answers.owner || "",
@@ -202,7 +203,9 @@ async function postMasCompliance(req, res) {
         }
         // Accept full form payload (not just systemDescription/systemName)
         const answers = req.body;
+        const { system_id } = answers; // Extract system_id for multi-jurisdiction support
         console.log("[MAS API] Received payload keys:", Object.keys(answers));
+        console.log("[MAS API] System ID:", system_id);
         const supabase = supabase_1.supabaseAdmin;
         const openai = new openai_1.OpenAI({ apiKey: process.env.OPEN_AI_KEY });
         // Extract evidence content from answers

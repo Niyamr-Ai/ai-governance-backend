@@ -137,6 +137,9 @@ async function updateLifecycle(req, res) {
         const complianceData = {
             type: 'EU AI Act',
             accountable_person: euSystem.accountable_person,
+            risk_tier: euSystem.risk_tier,
+            compliance_status: euSystem.compliance_status,
+            prohibited_practices_detected: euSystem.prohibited_practices_detected,
         };
         // Fetch risk assessment summary
         const { data: riskAssessments } = await supabase

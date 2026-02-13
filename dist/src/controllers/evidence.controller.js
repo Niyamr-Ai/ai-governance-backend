@@ -1,10 +1,45 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.upload = void 0;
 exports.processEvidence = processEvidence;
+exports.analyzeGovernanceDocumentEndpoint = analyzeGovernanceDocumentEndpoint;
+exports.analyzeDocumentEndpoint = analyzeDocumentEndpoint;
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const multer_1 = __importDefault(require("multer"));
@@ -259,6 +294,95 @@ async function processEvidence(req, res) {
     finally {
         // Cleanup worker
         await cleanupWorker();
+    }
+}
+/**
+ * POST /api/analyze-governance-document
+ * Analyzes extracted text from a governance document and returns structured data
+ * for auto-populating form fields
+ * @deprecated Use /api/analyze-document instead
+ */
+async function analyzeGovernanceDocumentEndpoint(req, res) {
+    console.log(`\n${'='.repeat(80)}`);
+    console.log(`🤖 [GOVERNANCE ANALYZER] ===== Analyze Governance Document Request =====`);
+    console.log(`⚠️  [GOVERNANCE ANALYZER] This endpoint is deprecated. Use /api/analyze-document instead.`);
+    console.log(`${'='.repeat(80)}\n`);
+    try {
+        const { documentText, formType } = req.body;
+        if (!documentText || typeof documentText !== 'string') {
+            console.error(`❌ [GOVERNANCE ANALYZER] Missing or invalid documentText`);
+            return res.status(400).json({
+                error: 'documentText is required and must be a string'
+            });
+        }
+        const validFormType = formType === 'UK' ? 'UK' : 'MAS';
+        const evidenceKey = validFormType === 'UK' ? 'uk_accountability_evidence' : 'governance_evidence';
+        console.log(`📋 [GOVERNANCE ANALYZER] Form type: ${validFormType}`);
+        console.log(`📋 [GOVERNANCE ANALYZER] Evidence key: ${evidenceKey}`);
+        console.log(`📄 [GOVERNANCE ANALYZER] Document text length: ${documentText.length} characters`);
+        // Use the new universal analyzer
+        const { analyzeDocument } = await Promise.resolve().then(() => __importStar(require("../../services/ai/universal-document-analyzer")));
+        const result = await analyzeDocument(documentText, evidenceKey);
+        console.log(`${'='.repeat(80)}`);
+        console.log(`✅ [GOVERNANCE ANALYZER] ===== Analysis completed successfully =====`);
+        console.log(`${'='.repeat(80)}\n`);
+        return res.status(200).json(result);
+    }
+    catch (error) {
+        console.error(`\n${'='.repeat(80)}`);
+        console.error(`❌ [GOVERNANCE ANALYZER] ===== Error =====`);
+        console.error(`   Error: ${error.message}`);
+        console.error(`   Stack: ${error.stack}`);
+        console.error(`${'='.repeat(80)}\n`);
+        return res.status(500).json({
+            error: 'Failed to analyze governance document',
+            message: error.message
+        });
+    }
+}
+/**
+ * POST /api/analyze-document
+ * Universal endpoint for analyzing any evidence document and returning structured data
+ * for auto-populating form fields
+ */
+async function analyzeDocumentEndpoint(req, res) {
+    console.log(`\n${'='.repeat(80)}`);
+    console.log(`🤖 [DOCUMENT ANALYZER] ===== Analyze Document Request =====`);
+    console.log(`${'='.repeat(80)}\n`);
+    try {
+        const { documentText, evidenceKey } = req.body;
+        if (!documentText || typeof documentText !== 'string') {
+            console.error(`❌ [DOCUMENT ANALYZER] Missing or invalid documentText`);
+            return res.status(400).json({
+                error: 'documentText is required and must be a string'
+            });
+        }
+        if (!evidenceKey || typeof evidenceKey !== 'string') {
+            console.error(`❌ [DOCUMENT ANALYZER] Missing or invalid evidenceKey`);
+            return res.status(400).json({
+                error: 'evidenceKey is required and must be a string'
+            });
+        }
+        console.log(`📋 [DOCUMENT ANALYZER] Evidence key: ${evidenceKey}`);
+        console.log(`📄 [DOCUMENT ANALYZER] Document text length: ${documentText.length} characters`);
+        const { analyzeDocument } = await Promise.resolve().then(() => __importStar(require("../../services/ai/universal-document-analyzer")));
+        const result = await analyzeDocument(documentText, evidenceKey);
+        console.log(`${'='.repeat(80)}`);
+        console.log(`✅ [DOCUMENT ANALYZER] ===== Analysis completed successfully =====`);
+        console.log(`${'='.repeat(80)}\n`);
+        return res.status(200).json(result);
+    }
+    catch (error) {
+        console.error(`\n${'='.repeat(80)}`);
+        console.error(`❌ [DOCUMENT ANALYZER] ===== Error =====`);
+        console.error(`   Evidence Key: ${req.body.evidenceKey || 'unknown'}`);
+        console.error(`   Error: ${error.message}`);
+        console.error(`   Stack: ${error.stack}`);
+        console.error(`${'='.repeat(80)}\n`);
+        return res.status(500).json({
+            error: 'Failed to analyze document',
+            message: error.message
+        });
     }
 }
 //# sourceMappingURL=evidence.controller.js.map

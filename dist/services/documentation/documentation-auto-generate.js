@@ -274,7 +274,7 @@ Format the document professionally with clear sections. Use markdown formatting.
         messages: [
             {
                 role: "system",
-                content: "You are an expert compliance documentation writer. Generate comprehensive, professional compliance documentation based on the provided system data, risk assessments, and regulatory context. Use the regulatory context to ensure accuracy and include specific regulatory references where applicable.",
+                content: "You are an expert compliance documentation writer. Generate comprehensive, professional compliance documentation based on the provided system data, risk assessments, and regulatory context. CRITICAL: Use ONLY actual data provided - NEVER use placeholders like [describe...], [provide...], [outline...]. If information is missing, state 'Not specified' or 'Not applicable'. Use the regulatory context to ensure accuracy and include specific regulatory references where applicable.",
             },
             {
                 role: "user",
