@@ -204,11 +204,36 @@ CRITICAL CLASSIFICATION RULES (MUST FOLLOW):
 
 6. **When in doubt, choose "Minimal risk"** - Do not assume prohibited practices without explicit evidence from Q5.
 
+CRITICAL: High-Risk Obligations Assessment Rules
+
+When determining "high_risk_obligations", you MUST check each obligation INDEPENDENTLY based on actual answers, NOT based on Q8 (Conformity Assessment status).
+
+**Decouple Obligation Checks from Conformity Assessment Status:**
+
+1. **Human Oversight (Article 14):**
+   - Check Q9 (Governance Measures) for "human_oversight" checkbox
+   - If Q9 includes "human_oversight" AND there is text description provided (e.g., "Reviewer Dashboard", "Human in the loop", etc.), then:
+     → DO NOT include "Human oversight" in high_risk_obligations
+     → Status = "Implemented" regardless of Q8 status
+   - Only include "Human oversight" in missing obligations if:
+     → Q9 does NOT include "human_oversight" checkbox, OR
+     → No text description/details are provided
+
+2. **Other High-Risk Obligations:**
+   - Check each obligation independently based on Q6 (Risk Management Actions) and Q9 (Governance Measures)
+   - If a specific measure is checked in Q6 or Q9 AND details are provided, mark it as fulfilled
+   - Do NOT automatically mark all obligations as missing just because Q8 = "Partially Completed"
+
+3. **Q8 (Conformity Assessment Status) is Informational Only:**
+   - Q8 status reflects overall assessment completion, NOT individual obligation fulfillment
+   - Individual obligations should be checked based on their specific Q6/Q9 answers
+   - A system can have "Partially Completed" conformity assessment but still have specific obligations fulfilled
+
 Provide your analysis in this JSON format:
 {
   "classification": "Unacceptable risk" | "High-risk" | "Limited risk" | "Minimal risk",
   "reasoning": "Brief explanation referencing specific answers (Q1, Q4, Q5, Q7, etc.)",
-  "high_risk_obligations": ["List of applicable high-risk obligations if Q4 indicates high-risk activities"],
+  "high_risk_obligations": ["List of ONLY the high-risk obligations that are ACTUALLY missing based on Q6/Q9 answers. DO NOT include obligations that are checked/implemented in Q6/Q9, even if Q8 = 'Partially Completed'"],
   "prohibited_practices_detected": ["List of prohibited practices ONLY if Q5 explicitly contains banned activities"],
   "recommendations": ["Actionable recommendations"]
 }
@@ -258,6 +283,49 @@ Be precise and follow EU AI Act guidelines exactly. Default to Minimal risk when
       };
     }
 
+    // Post-process high_risk_obligations to decouple from conformity assessment status
+    // Check Q9 (governance measures) for individual obligation fulfillment
+    // Note: governanceMeasures is already declared above (line 152)
+    const hasHumanOversight = governanceMeasures.includes('human_oversight');
+    
+    // Check for human oversight details in various possible field names
+    const humanOversightDetails = 
+      answers.human_oversight_measures || 
+      answers.human_oversight_details ||
+      answers.human_oversight_description ||
+      answers.human_oversight ||
+      '';
+    
+    // Also check if any text fields contain human oversight information
+    const hasHumanOversightText = hasHumanOversight && (
+      (humanOversightDetails && humanOversightDetails.trim() !== '') ||
+      // Check if any answer field contains human oversight related text
+      Object.values(answers).some((value: any) => {
+        if (typeof value === 'string' && value.trim() !== '') {
+          const valueLower = value.toLowerCase();
+          return valueLower.includes('reviewer') || 
+                 valueLower.includes('dashboard') ||
+                 valueLower.includes('human in the loop') ||
+                 valueLower.includes('oversight');
+        }
+        return false;
+      })
+    );
+    
+    // If human oversight is checked AND details are provided, remove it from missing obligations
+    let highRiskObligations = analysis.high_risk_obligations || [];
+    if (hasHumanOversight && hasHumanOversightText) {
+      // Filter out human oversight related obligations
+      highRiskObligations = highRiskObligations.filter((obligation: string) => {
+        const obligationLower = obligation.toLowerCase();
+        return !obligationLower.includes('human oversight') && 
+               !obligationLower.includes('human oversight mechanisms') &&
+               !obligationLower.includes('article 14') &&
+               !obligationLower.includes('oversight');
+      });
+      console.log(`[EU Compliance] Human oversight implemented (Q9 checked + details provided), removed from missing obligations`);
+    }
+
     // 2. Map classification to risk_tier
     const riskTierMap: Record<string, string> = {
       "Unacceptable risk": "Prohibited",
@@ -269,7 +337,6 @@ Be precise and follow EU AI Act guidelines exactly. Default to Minimal risk when
 
     const riskTier = riskTierMap[analysis.classification] || "Unknown";
     const hasProhibitedPractices = (analysis.prohibited_practices_detected || []).length > 0;
-    const highRiskObligations = analysis.high_risk_obligations || [];
     const hasAllHighRiskFulfilled = riskTier === "High-risk" && highRiskObligations.length === 0;
 
     // Determine compliance status

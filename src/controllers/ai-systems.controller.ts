@@ -1622,13 +1622,28 @@ if (!userId) {
       });
     }
 
-    // Get approved risk assessments (only approved status)
-    const { data: riskAssessments } = await supabase
+    // Get risk assessments - include submitted/approved when conformity assessment is partially completed
+    // Extract q8 (conformity assessment status) from raw_answers
+    const rawAnswers = systemData.raw_answers || {};
+    const conformityStatus = rawAnswers.q8 || '';
+    const isPartiallyCompleted = conformityStatus === 'partial' || conformityStatus === 'Partially completed';
+    
+    // If partially completed, include both submitted and approved risk assessments
+    // Otherwise, only include approved
+    let riskAssessmentsQuery = supabase
       .from("risk_assessments")
       .select("*")
-      .eq("ai_system_id", systemId)
-      .eq("status", "approved")
-      .order("assessed_at", { ascending: false });
+      .eq("ai_system_id", systemId);
+    
+    if (isPartiallyCompleted) {
+      // Include both submitted and approved when conformity assessment is partially completed
+      riskAssessmentsQuery = riskAssessmentsQuery.in("status", ["approved", "submitted"]);
+    } else {
+      // Only approved for fully completed or not started
+      riskAssessmentsQuery = riskAssessmentsQuery.eq("status", "approved");
+    }
+    
+    const { data: riskAssessments } = await riskAssessmentsQuery.order("assessed_at", { ascending: false });
 
     // Get latest risk assessment version for traceability
     const latestRiskAssessment = riskAssessments && riskAssessments.length > 0
@@ -1965,12 +1980,45 @@ function buildPrompt(
   },
   regulatoryContext?: string
 ): string {
-  const riskSummary = riskAssessments.map(ra => {
-    let line = `- ${ra.category}: ${ra.risk_level} risk - ${ra.summary} (Mitigation: ${ra.mitigation_status})`;
-    if (ra.risk_score) line += ` [Risk Score: ${ra.risk_score}]`;
-    if (ra.assessed_at) line += ` [Assessed: ${new Date(ra.assessed_at).toLocaleDateString()}]`;
-    return line;
-  }).join('\n');
+  // Build risk summary with proper status mapping
+  // Extract q8 (conformity assessment status) from systemData to determine overall status
+  const rawAnswers = systemData.raw_answers || {};
+  const conformityStatus = rawAnswers.q8 || '';
+  const isPartiallyCompleted = conformityStatus === 'partial' || conformityStatus === 'Partially completed' || conformityStatus?.toLowerCase() === 'partially completed';
+  
+  // Map risk assessment status for display
+  const getRiskAssessmentStatusText = (status: string): string => {
+    switch (status?.toLowerCase()) {
+      case 'approved':
+        return 'Approved';
+      case 'submitted':
+        return 'Under Review';
+      case 'draft':
+        return 'Draft';
+      case 'rejected':
+        return 'Rejected';
+      default:
+        return status || 'Unknown';
+    }
+  };
+  
+  // Build risk summary with proper status mapping
+  let riskSummary: string;
+  if (riskAssessments.length > 0) {
+    riskSummary = riskAssessments.map(ra => {
+      const statusText = getRiskAssessmentStatusText(ra.status);
+      let line = `- ${ra.category}: ${ra.risk_level} risk - ${ra.summary} (Status: ${statusText}, Mitigation: ${ra.mitigation_status})`;
+      if (ra.risk_score) line += ` [Risk Score: ${ra.risk_score}]`;
+      if (ra.assessed_at) line += ` [Assessed: ${new Date(ra.assessed_at).toLocaleDateString()}]`;
+      return line;
+    }).join('\n');
+  } else if (isPartiallyCompleted) {
+    // When conformity assessment is partially completed but no risk assessments found, show "In Progress"
+    riskSummary = 'Risk assessments are in progress (Partially completed conformity assessment)';
+  } else {
+    // No assessments and not partially completed
+    riskSummary = 'No approved risk assessments available';
+  }
 
   // Build evidence references
   const evidenceRefs: string[] = [];
@@ -2086,8 +2134,8 @@ ${systemData.high_risk_missing && systemData.high_risk_missing.length > 0 ? `- M
 - Post-Market Monitoring: ${systemData.post_market_monitoring ? 'Yes' : 'No'}
 - FRIA Completed: ${systemData.fria_completed ? 'Yes' : 'No'}
 
-Risk Assessments (Approved):
-${riskSummary || 'No approved risk assessments available'}
+Risk Assessments:
+${riskSummary}
 
 Generate a professional Compliance Summary document that includes:
 
@@ -2118,7 +2166,7 @@ ${isMinimalRisk ? `4. **Applicable Requirements**
 ` : ''}
 
 5. **Risk Assessments**
-   ${riskSummary ? `List approved risk assessments:\n${riskSummary}` : 'No approved risk assessments available'}
+   ${riskSummary ? `List risk assessments:\n${riskSummary}` : 'No risk assessments available'}
 
 ${isHighRisk ? `6. **Post-Market Monitoring**
    - Status: ${systemData.post_market_monitoring ? 'In place' : 'Not yet implemented'}
@@ -2144,12 +2192,92 @@ ${isMinimalRisk ? `6. **Monitoring Requirements**
 }
 
 function buildUKAIActPrompt(systemData: any, riskSummary: string): string {
+  // Extract UK assessment answers from raw_answers
+  const rawAnswers = systemData.raw_answers || {};
+  
+  // Extract Contestability & Redress specific fields
+  const contestabilityData = {
+    // User Rights
+    user_rights: rawAnswers.user_rights || false,
+    user_rights_what: rawAnswers.user_rights_what || '',
+    user_rights_communication: rawAnswers.user_rights_communication || '',
+    user_rights_evidence: rawAnswers.user_rights_evidence || '',
+    
+    // Appeal Mechanism
+    appeal_mechanism: rawAnswers.appeal_mechanism || false,
+    appeal_mechanism_process: rawAnswers.appeal_mechanism_process || '',
+    appeal_mechanism_timeline: rawAnswers.appeal_mechanism_timeline || '',
+    appeal_mechanism_accessibility: rawAnswers.appeal_mechanism_accessibility || '',
+    appeal_mechanism_evidence: rawAnswers.appeal_mechanism_evidence || '',
+    
+    // Redress Process
+    redress_process: rawAnswers.redress_process || false,
+    redress_process_steps: rawAnswers.redress_process_steps || '',
+    redress_compensation: rawAnswers.redress_compensation || '',
+    redress_documentation: rawAnswers.redress_documentation || '',
+    redress_process_evidence: rawAnswers.redress_process_evidence || '',
+    
+    // Complaint Handling
+    complaint_handling: rawAnswers.complaint_handling || false,
+    complaint_handling_procedures: rawAnswers.complaint_handling_procedures || '',
+    complaint_tracking: rawAnswers.complaint_tracking || '',
+    complaint_handling_evidence: rawAnswers.complaint_handling_evidence || '',
+  };
+
+  // Build contestability & redress section with actual data
+  const contestabilitySection = `
+## Contestability & Redress Details
+
+### User Rights and Information
+- User Rights Established: ${contestabilityData.user_rights ? 'Yes' : 'No'}
+${contestabilityData.user_rights_what ? `- What Rights Users Have: ${contestabilityData.user_rights_what}` : '- What Rights Users Have: Not specified'}
+${contestabilityData.user_rights_communication ? `- How Rights Are Communicated: ${contestabilityData.user_rights_communication}` : '- How Rights Are Communicated: Not specified'}
+${contestabilityData.user_rights_evidence ? `- Evidence: Provided (file attachment)` : contestabilityData.user_rights_what || contestabilityData.user_rights_communication ? '- Evidence: Text input provided (see above)' : '- Evidence: Not provided'}
+
+### Appeal or Challenge Mechanism
+- Appeal Mechanism Exists: ${contestabilityData.appeal_mechanism ? 'Yes' : 'No'}
+${contestabilityData.appeal_mechanism_process ? `- Appeal Process: ${contestabilityData.appeal_mechanism_process}` : '- Appeal Process: Not specified'}
+${contestabilityData.appeal_mechanism_timeline ? `- Appeal Timeline: ${contestabilityData.appeal_mechanism_timeline}` : '- Appeal Timeline: Not specified'}
+${contestabilityData.appeal_mechanism_accessibility ? `- Appeal Accessibility: ${contestabilityData.appeal_mechanism_accessibility}` : '- Appeal Accessibility: Not specified'}
+${contestabilityData.appeal_mechanism_evidence ? `- Evidence: Provided (file attachment)` : contestabilityData.appeal_mechanism_process || contestabilityData.appeal_mechanism_timeline || contestabilityData.appeal_mechanism_accessibility ? '- Evidence: Text input provided (see above)' : '- Evidence: Not provided'}
+
+### Redress Process for Adverse Outcomes
+- Redress Process Exists: ${contestabilityData.redress_process ? 'Yes' : 'No'}
+${contestabilityData.redress_process_steps ? `- Redress Steps: ${contestabilityData.redress_process_steps}` : '- Redress Steps: Not specified'}
+${contestabilityData.redress_compensation ? `- Compensation Mechanisms: ${contestabilityData.redress_compensation}` : '- Compensation Mechanisms: Not specified'}
+${contestabilityData.redress_documentation ? `- Redress Documentation: ${contestabilityData.redress_documentation}` : '- Redress Documentation: Not specified'}
+${contestabilityData.redress_process_evidence ? `- Evidence: Provided (file attachment)` : contestabilityData.redress_process_steps || contestabilityData.redress_compensation || contestabilityData.redress_documentation ? '- Evidence: Text input provided (see above)' : '- Evidence: Not provided'}
+
+### Complaint Handling Procedures
+- Complaint Handling Exists: ${contestabilityData.complaint_handling ? 'Yes' : 'No'}
+${contestabilityData.complaint_handling_procedures ? `- Complaint Procedures: ${contestabilityData.complaint_handling_procedures}` : '- Complaint Procedures: Not specified'}
+${contestabilityData.complaint_tracking ? `- Complaint Tracking: ${contestabilityData.complaint_tracking}` : '- Complaint Tracking: Not specified'}
+${contestabilityData.complaint_handling_evidence ? `- Evidence: Provided (file attachment)` : contestabilityData.complaint_handling_procedures || contestabilityData.complaint_tracking ? '- Evidence: Text input provided (see above)' : '- Evidence: Not provided'}
+
+---
+
+**IMPORTANT:** When documenting Contestability & Redress status:
+- If text inputs are provided (even without file attachments), mark the section as "Complete" or "In Progress" based on the text content
+- Use the actual text input values in the documentation (e.g., "Appeal Rate ~4.2%", "Redress: Restitution/Correction")
+- Only mark as "Not specified" or "Actions Required" if NO text inputs AND NO file attachments are provided
+- Status should reflect the presence of text content, not just file attachments
+`;
+
   return `Generate compliance documentation for an AI system aligned with the UK AI Regulatory Framework.
 
 System Information:
 - Name: ${systemData.system_name || 'Unspecified'}
 - Risk Level: ${systemData.risk_level || 'Unknown'}
 - Overall Assessment: ${systemData.overall_assessment || 'Unknown'}
+
+UK AI Principles Status:
+- Safety & Security: ${systemData.safety_and_security?.meetsPrinciple ? 'Met' : 'Not Met'}${systemData.safety_and_security?.missing?.length ? ` (Gaps: ${systemData.safety_and_security.missing.join(', ')})` : ''}
+- Transparency: ${systemData.transparency?.meetsPrinciple ? 'Met' : 'Not Met'}${systemData.transparency?.missing?.length ? ` (Gaps: ${systemData.transparency.missing.join(', ')})` : ''}
+- Fairness: ${systemData.fairness?.meetsPrinciple ? 'Met' : 'Not Met'}${systemData.fairness?.missing?.length ? ` (Gaps: ${systemData.fairness.missing.join(', ')})` : ''}
+- Governance: ${systemData.governance?.meetsPrinciple ? 'Met' : 'Not Met'}${systemData.governance?.missing?.length ? ` (Gaps: ${systemData.governance.missing.join(', ')})` : ''}
+- Contestability: ${systemData.contestability?.meetsPrinciple ? 'Met' : 'Not Met'}${systemData.contestability?.missing?.length ? ` (Gaps: ${systemData.contestability.missing.join(', ')})` : ''}
+
+${contestabilitySection}
 
 Risk Assessments (Approved):
 ${riskSummary || 'No approved risk assessments'}
@@ -2160,6 +2288,12 @@ Generate comprehensive documentation that addresses all 5 UK AI principles:
 3. Fairness
 4. Accountability & Governance
 5. Contestability & Redress
+
+For Contestability & Redress section:
+- Use the actual text input values provided above (e.g., appeal rates, redress mechanisms, user rights descriptions)
+- Mark status as "Complete" or "In Progress" if text inputs are present, even without file attachments
+- Only mark as "Not specified" if both text inputs AND file attachments are missing
+- Include specific details from text inputs in the documentation
 
 Format the document professionally with clear sections. Use markdown formatting.`;
 }

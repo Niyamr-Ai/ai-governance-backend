@@ -280,6 +280,14 @@ You MUST classify riskLevel using a RISK-FIRST approach, prioritizing decision c
 
 "sectorRegulation":
 - Flag obligations based on industry (FCA, ICO, Ofcom, MHRA, CMA, etc.)
+- **CRITICAL: IoT/Device Type Filtering:**
+  - DO NOT include Consumer Connectable Products Act (PSTI Act) or NPSA guidelines recommendations if:
+    * System type is "Software" or "SaaS" (no hardware component)
+    * No hardware/device type is mentioned in answers
+    * System is purely software-based (e.g., financial services software, SaaS platforms)
+  - Consumer Connectable Products Act ONLY applies to physical IoT devices/hardware
+  - If system mentions "Security" but is Software/SaaS, do NOT assume IoT device regulations apply
+  - Only include IoT/PSTI Act recommendations if system explicitly involves physical hardware devices or consumer connectable products
 
 "overallAssessment":
 - "Compliant", "Partially compliant", or "Non-compliant"
@@ -404,11 +412,65 @@ Only return valid JSON. No explanation outside the JSON.
             },
             summary: parsed.summary || "",
         };
+        // Post-process sectorRegulation to filter out IoT/PSTI Act recommendations for Software/SaaS systems
+        // Check if system is Software/SaaS (no hardware)
+        const systemDescription = answers.description || answers.system_description || '';
+        const sector = answers.sector || '';
+        const businessUseCase = answers.business_use_case || finalCompanyUseCase || '';
+        // Determine if system is Software/SaaS (no hardware)
+        const isSoftwareOnly = 
+        // Check if description/business case indicates software-only
+        (systemDescription.toLowerCase().includes('software') && !systemDescription.toLowerCase().includes('hardware')) ||
+            (systemDescription.toLowerCase().includes('saas') || systemDescription.toLowerCase().includes('platform')) ||
+            (businessUseCase.toLowerCase().includes('software') && !businessUseCase.toLowerCase().includes('hardware')) ||
+            (businessUseCase.toLowerCase().includes('saas') || businessUseCase.toLowerCase().includes('platform')) ||
+            // Check if sector is typically software-based
+            (sector.toLowerCase().includes('financial services') || sector.toLowerCase().includes('finance')) ||
+            // No mention of hardware, device, IoT, physical, etc.
+            (!systemDescription.toLowerCase().includes('hardware') &&
+                !systemDescription.toLowerCase().includes('device') &&
+                !systemDescription.toLowerCase().includes('iot') &&
+                !systemDescription.toLowerCase().includes('physical') &&
+                !businessUseCase.toLowerCase().includes('hardware') &&
+                !businessUseCase.toLowerCase().includes('device') &&
+                !businessUseCase.toLowerCase().includes('iot') &&
+                !businessUseCase.toLowerCase().includes('physical'));
+        // Filter out IoT/PSTI Act recommendations if system is Software/SaaS
+        if (isSoftwareOnly && assessment.sectorRegulation) {
+            const iotKeywords = [
+                'consumer connectable products',
+                'connectable products',
+                'psti act',
+                'product security',
+                'telecommunications infrastructure',
+                'npsa guidelines',
+                'iot',
+                'internet of things',
+                'device security',
+                'hardware security'
+            ];
+            // Filter requiredControls
+            if (Array.isArray(assessment.sectorRegulation.requiredControls)) {
+                assessment.sectorRegulation.requiredControls = assessment.sectorRegulation.requiredControls.filter((control) => {
+                    const controlLower = control.toLowerCase();
+                    return !iotKeywords.some(keyword => controlLower.includes(keyword));
+                });
+            }
+            // Filter gaps
+            if (Array.isArray(assessment.sectorRegulation.gaps)) {
+                assessment.sectorRegulation.gaps = assessment.sectorRegulation.gaps.filter((gap) => {
+                    const gapLower = gap.toLowerCase();
+                    return !iotKeywords.some(keyword => gapLower.includes(keyword));
+                });
+            }
+            console.log(`[UK Compliance] Software/SaaS system detected - filtered out IoT/PSTI Act recommendations`);
+        }
         // Log final classification
         console.log("\n========== [UK Compliance] Final Classification ==========");
         console.log("[UK] Final riskLevel:", assessment.riskLevel);
         console.log("[UK] Final overallAssessment:", assessment.overallAssessment);
         console.log("[UK] Final sectorRegulation.sector:", assessment.sectorRegulation.sector);
+        console.log("[UK] System Type Detection - Software Only:", isSoftwareOnly);
         console.log("===========================================================\n");
         // Extract accountable person from uk9
         const accountablePerson = answers.uk9 || "";
